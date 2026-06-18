@@ -1,0 +1,11 @@
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0f172a; --surface:#1e293b; --surface2:#334155; --border:#475569;
+  --text:#f1f5f9; --text2:#94a3b8; --text3:#64748b;
+  --cyan:#22d3ee; --cyan2:#06b6d4; --red:#f87171; --amber:#fbbf24; --green:#4ade80;
+  --ff:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+}
+html,body,#root{width:100%;min-height:100vh}
+body{font-family:var(--ff);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}

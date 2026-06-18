@@ -1,0 +1,49 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+env/
+.env
+*.env
+
+# Node / dashboard
+dashboard/node_modules/
+dashboard/.vite/
+node_modules/
+dist/
+.cache/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+*.DS_Store
+
+# Public repo hygiene
+.env.*
+!.env.example
+!.env.sample
+.venv/
+.vercel/
+key.properties
+*.jks
+*.keystore
+*.sqlite
+*.db
+*.pkl
+*.pickle
+*.parquet
+*.zip
