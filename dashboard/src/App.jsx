@@ -133,7 +133,8 @@ function RecessionBands() {
 
 function LogoLockup() {
   return (
-    <div className="logo-lockup">
+    <div className="brand-block">
+      <div className="brand-mark" aria-hidden="true">YC</div>
       <div>
         <strong>{BRAND}</strong>
         <span className="logo-subtitle">Recession Risk Monitor</span>
@@ -269,391 +270,329 @@ export default function App() {
   if (status === 'loading' && !overview) return <LoadingState />
   if (status === 'error') return <ErrorState error={error} onRetry={() => setRefreshVersion((value) => value + 1)} />
 
+  const activeMeta = {
+    overview: {
+      title: 'Recession Probability Over Time',
+      subtitle: 'Predicted 12-month recession probability with historical recession bands.',
+    },
+    yields: {
+      title: 'Treasury Yield History',
+      subtitle: 'Synthetic monthly Treasury series across the curve.',
+    },
+    model: {
+      title: 'Feature Importance',
+      subtitle: 'Top gradient boosting predictors ranked by contribution.',
+    },
+    eda: {
+      title: 'Spread Distribution',
+      subtitle: 'Negative values mark yield curve inversion.',
+    },
+    notes: {
+      title: 'Architecture Notes',
+      subtitle: 'A compact read on the modeling pipeline and tradeoffs.',
+    },
+  }[tab]
+
+  const insight = {
+    overview: {
+      title: 'Signal',
+      body: `${risk.label}: the current model probability is ${formatPercent(probability)} and ${risk.summary}.`,
+      tip: 'Compare probability spikes with recession bands before reading a single current value too literally.',
+    },
+    yields: {
+      title: 'Curve',
+      body: spread10y2y === null
+        ? 'The 10Y - 2Y spread is unavailable in this run.'
+        : `The 10Y - 2Y spread is ${formatSigned(spread10y2y, '%')}, so the current curve reads ${curveSignal.toLowerCase()}.`,
+      tip: 'The slope matters most when it stays inverted, not when it flickers for one observation.',
+    },
+    model: {
+      title: 'Model',
+      body: `Gradient boosting is the primary readout here, with AUC ${auc === null ? '-' : auc.toFixed(3)} on forward-looking folds.`,
+      tip: 'Feature importance is a ranking aid, not a causal claim.',
+    },
+    eda: {
+      title: 'EDA',
+      body: 'The distribution and correlation checks keep the modeling story honest before the dashboard gets polished.',
+      tip: 'Use these checks to spot leakage or an overfit synthetic signal.',
+    },
+    notes: {
+      title: 'Notes',
+      body: 'The app keeps data generation, feature engineering, model validation, API output, and UI rendering in one reproducible path.',
+      tip: 'Synthetic data keeps the demo cloneable without external API keys.',
+    },
+  }[tab]
+
+  const centerView = {
+    overview: probabilitySeries.length ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={probabilitySeries} margin={{ top: 12, right: 18, bottom: 8, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: COLORS.muted }}
+            tickFormatter={(value) => value?.slice(0, 4)}
+            interval={tickInterval(probabilitySeries.length, 10)}
+          />
+          <YAxis
+            tick={{ fontSize: 11, fill: COLORS.muted }}
+            domain={[0, 1]}
+            tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
+          />
+          <RecessionBands />
+          <Area
+            type="monotone"
+            dataKey="ensemble_prob"
+            name="Model probability"
+            stroke={COLORS.green}
+            fill={COLORS.green}
+            fillOpacity={0.08}
+            strokeWidth={2.2}
+            dot={false}
+          />
+          <Area
+            type="monotone"
+            dataKey="actual"
+            name="NBER recession"
+            stroke={COLORS.red}
+            fill={COLORS.red}
+            fillOpacity={0.08}
+            strokeWidth={1}
+            dot={false}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle()}
+            formatter={(value, name) => [name === 'Model probability' ? formatPercent(value) : value, name]}
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    ) : <EmptyState />,
+    yields: yieldSeries.length ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={yieldSeries} margin={{ top: 14, right: 18, bottom: 8, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+          <XAxis
+            dataKey="date"
+            tick={{ fontSize: 11, fill: COLORS.muted }}
+            tickFormatter={(value) => value?.slice(0, 4)}
+            interval={tickInterval(yieldSeries.length, 12)}
+          />
+          <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(value) => `${value}%`} />
+          <RecessionBands />
+          <Line type="monotone" dataKey="t3m" stroke="#9aa4b2" strokeWidth={1} dot={false} name="3-month" />
+          <Line type="monotone" dataKey="t2y" stroke="#5d6678" strokeWidth={1.25} dot={false} name="2-year" />
+          <Line type="monotone" dataKey="t10y" stroke={COLORS.ink} strokeWidth={2} dot={false} name="10-year" />
+          <Line type="monotone" dataKey="t30y" stroke="#2f3848" strokeWidth={1.25} dot={false} name="30-year" />
+          <Tooltip contentStyle={tooltipStyle()} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    ) : <EmptyState />,
+    model: featureImportance.length ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={featureImportance} layout="vertical" margin={{ top: 18, right: 24, bottom: 10, left: 150 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+          <XAxis type="number" tick={{ fontSize: 11, fill: COLORS.muted }} />
+          <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: COLORS.ink }} width={140} />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+            {featureImportance.map((_, index) => (
+              <Cell key={index} fill={index < 3 ? COLORS.green : '#aab2c0'} />
+            ))}
+          </Bar>
+          <Tooltip contentStyle={tooltipStyle()} formatter={(value) => [`${value}%`, 'Importance']} />
+        </BarChart>
+      </ResponsiveContainer>
+    ) : <EmptyState />,
+    eda: eda?.spread_distribution?.bins?.length ? (
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={eda.spread_distribution.bins.map((bin, index) => ({ bin, count: eda.spread_distribution.counts[index] }))}
+          margin={{ top: 18, right: 18, bottom: 10, left: 0 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
+          <XAxis dataKey="bin" tick={{ fontSize: 10, fill: COLORS.muted }} />
+          <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
+          <ReferenceLine x={0} stroke={COLORS.red} strokeDasharray="4 4" />
+          <Bar dataKey="count" radius={[3, 3, 0, 0]}>
+            {eda.spread_distribution.bins.map((bin, index) => (
+              <Cell key={index} fill={bin < 0 ? COLORS.red : COLORS.green} opacity={bin < 0 ? 0.72 : 0.82} />
+            ))}
+          </Bar>
+          <Tooltip contentStyle={tooltipStyle()} />
+        </BarChart>
+      </ResponsiveContainer>
+    ) : <EmptyState />,
+    notes: (
+      <div className="notes-canvas">
+        <section>
+          <h3>Why synthetic data?</h3>
+          <p>
+            Real macro datasets bring API keys, refresh schedules, and licensing decisions.
+            This project keeps the whole pipeline cloneable while preserving the modeling shape.
+          </p>
+        </section>
+        <ol className="step-list">
+          <li>Generate yield curves, recession labels, and macro indicators.</li>
+          <li>Engineer spreads, rolling averages, inversion flags, and lead-time features.</li>
+          <li>Train logistic regression and gradient boosting with time-series folds.</li>
+          <li>Serve model outputs through FastAPI and visualize them in React.</li>
+        </ol>
+      </div>
+    ),
+  }[tab]
+
   return (
-    <main className="app-shell">
+    <main className="site-shell">
+      <div className="app-shell">
       <header className="topbar">
         <LogoLockup />
 
-        <div className="project-intro">
-          <h1>Recession risk model driven by the yield curve</h1>
-          <p>Interpretable machine learning, time-series validation, and a recruiter-friendly dashboard in one reproducible project.</p>
+        <div className="topbar-title">
+          <h1>Yield curve recession monitor</h1>
+          <span>Interpretable recession-risk model with reproducible synthetic macro data</span>
         </div>
 
         <div className="topbar-actions">
-          <Pill tone="green">Synthetic data</Pill>
-          <Pill tone="blue">Time-series CV</Pill>
+          <span className="run-state is-ready">
+            <span className="status-dot" />
+            Ready
+          </span>
           <button type="button" onClick={() => setRefreshVersion((value) => value + 1)}>Refresh</button>
         </div>
       </header>
 
-      <section className="hero-grid" aria-label="Project summary">
-        <StatCard
-          title="12-month recession probability"
-          value={formatPercent(probability)}
-          detail={`${risk.label}: ${risk.summary}`}
-          tone={risk.tone}
-        >
-          <div className="sparkline" aria-hidden="true">
+      <aside className="panel control-panel" aria-label="Yield curve controls">
+        <section className="field-group">
+          <label>View</label>
+          <div className="tab-stack">
+            {TABS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={tab === item.id ? 'active' : ''}
+                onClick={() => setTab(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="field-group">
+          <label>Current risk</label>
+          <div className="summary-value">{formatPercent(probability)}</div>
+          <p>{risk.label}: {risk.summary}</p>
+          <div className="rail-sparkline" aria-hidden="true">
             <ResponsiveContainer width="100%" height={54}>
               <LineChart data={probabilitySeries.slice(-36)} margin={{ top: 8, right: 2, bottom: 2, left: 2 }}>
-                <Line
-                  type="monotone"
-                  dataKey="ensemble_prob"
-                  stroke={risk.color}
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
+                <Line type="monotone" dataKey="ensemble_prob" stroke={risk.color} strokeWidth={2} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
-        </StatCard>
+        </section>
 
-        <StatCard
-          title="Model quality"
-          value={auc === null ? '-' : auc.toFixed(3)}
-          detail="Gradient boosting AUC, evaluated with forward-looking folds"
-        />
+        <section className="field-group">
+          <label>Latest curve</label>
+          <div className="curve-list">
+            {curveData.map((point) => (
+              <div key={point.term}>
+                <span>{point.term}</span>
+                <strong>{formatNumber(point.value, 2)}%</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+      </aside>
 
-        <StatCard
-          title="Current curve signal"
-          value={curveSignal}
-          detail={spread10y2y === null ? '10Y - 2Y spread unavailable' : `10Y - 2Y spread: ${formatSigned(spread10y2y, '%')}`}
-          tone={overview?.is_inverted ? 'red' : 'green'}
-        />
-
-        <StatCard
-          title="Data coverage"
-          value={overview?.date_range?.start ? `${overview.date_range.start.slice(0, 4)}-${overview.date_range.end.slice(0, 4)}` : '-'}
-          detail={`${overview?.n_observations || '-'} monthly observations`}
-        />
+      <section className="visual-panel" aria-label={activeMeta.title}>
+        <div className="canvas-toolbar">
+          <div>
+            <h2>{activeMeta.title}</h2>
+            <span>{activeMeta.subtitle}</span>
+          </div>
+          <div className="signal-pill">{curveSignal}</div>
+        </div>
+        <div className="chart-canvas">
+          {centerView}
+        </div>
       </section>
 
-      <nav className="tabs" aria-label="Dashboard sections">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={tab === item.id ? 'active' : ''}
-            onClick={() => setTab(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-
-      {tab === 'overview' && (
-        <>
-          <section className="content-grid">
-            <Panel
-              title="Recession Probability Over Time"
-              subtitle="Predicted 12-month recession probability with historical recession bands."
-              className="wide"
-            >
-              {probabilitySeries.length ? (
-                <ResponsiveContainer width="100%" height={340}>
-                  <AreaChart data={probabilitySeries}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 11, fill: COLORS.muted }}
-                      tickFormatter={(value) => value?.slice(0, 4)}
-                      interval={tickInterval(probabilitySeries.length, 10)}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: COLORS.muted }}
-                      domain={[0, 1]}
-                      tickFormatter={(value) => `${(value * 100).toFixed(0)}%`}
-                    />
-                    <RecessionBands />
-                    <Area
-                      type="monotone"
-                      dataKey="ensemble_prob"
-                      name="Model probability"
-                      stroke={COLORS.green}
-                      fill={COLORS.green}
-                      fillOpacity={0.08}
-                      strokeWidth={2.2}
-                      dot={false}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="actual"
-                      name="NBER recession"
-                      stroke={COLORS.red}
-                      fill={COLORS.red}
-                      fillOpacity={0.08}
-                      strokeWidth={1}
-                      dot={false}
-                    />
-                    <Tooltip
-                      contentStyle={tooltipStyle()}
-                      formatter={(value, name) => [name === 'Model probability' ? formatPercent(value) : value, name]}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              ) : <EmptyState />}
-            </Panel>
-
-            <Panel title="Latest Yield Curve" subtitle="Spot rates across maturities.">
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={curveData} margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                  <XAxis dataKey="term" tick={{ fontSize: 12, fill: COLORS.muted }} />
-                  <YAxis domain={[0, 8]} tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(value) => `${value}%`} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {curveData.map((point) => (
-                      <Cell key={point.term} fill={point.term === '10Y' ? COLORS.ink : '#8f98a8'} />
-                    ))}
-                  </Bar>
-                  <Tooltip contentStyle={tooltipStyle()} formatter={(value) => [`${formatNumber(value, 2)}%`, 'Yield']} />
-                </BarChart>
-              </ResponsiveContainer>
-
-              <div className="signal-strip">
-                <span>10Y - 2Y Spread</span>
-                <strong className={overview?.is_inverted ? 'red' : 'green'}>
-                  {spread10y2y === null ? '-' : formatSigned(spread10y2y, '%')}
-                </strong>
-              </div>
-            </Panel>
-          </section>
-
-          <section className="insight-grid">
-            <Panel title="Signal Reading">
-              <ul className="plain-list">
-                <li><strong>Probability</strong> estimates whether a recession begins within the next 12 months.</li>
-                <li><strong>Curve slope</strong> matters because inversions have historically preceded recessions.</li>
-                <li><strong>Green, amber, red</strong> map to low, elevated, and high risk thresholds.</li>
-              </ul>
-            </Panel>
-
-            <Panel title="Project Depth">
-              <ul className="plain-list">
-                <li>End-to-end flow: data generation, feature engineering, model validation, API, and UI.</li>
-                <li>Validation avoids future leakage with time-series cross-validation.</li>
-                <li>Model outputs are translated into product-readable signals.</li>
-              </ul>
-            </Panel>
-
-            <Panel title="Key Inputs">
-              <div className="metric-list">
-                <span>Unemployment <strong>{formatRate(overview?.latest_indicators?.unemployment)}</strong></span>
-                <span>CPI YoY <strong>{formatRate(overview?.latest_indicators?.cpi_yoy)}</strong></span>
-                <span>GDP growth <strong>{formatRate(overview?.latest_indicators?.gdp_growth)}</strong></span>
-                <span>ISM PMI <strong>{formatNumber(overview?.latest_indicators?.ism_pmi, 1)}</strong></span>
-              </div>
-            </Panel>
-          </section>
-        </>
-      )}
-
-      {tab === 'yields' && (
-        <>
-          <Panel title="Treasury Yields" subtitle="Synthetic monthly Treasury series modeled on historical rate behavior.">
-            {yieldSeries.length ? (
-              <ResponsiveContainer width="100%" height={360}>
-                <LineChart data={yieldSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11, fill: COLORS.muted }}
-                    tickFormatter={(value) => value?.slice(0, 4)}
-                    interval={tickInterval(yieldSeries.length, 12)}
-                  />
-                  <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(value) => `${value}%`} />
-                  <RecessionBands />
-                  <Line type="monotone" dataKey="t3m" stroke="#9aa4b2" strokeWidth={1} dot={false} name="3-month" />
-                  <Line type="monotone" dataKey="t2y" stroke="#5d6678" strokeWidth={1.25} dot={false} name="2-year" />
-                  <Line type="monotone" dataKey="t10y" stroke={COLORS.ink} strokeWidth={2} dot={false} name="10-year" />
-                  <Line type="monotone" dataKey="t30y" stroke="#2f3848" strokeWidth={1.25} dot={false} name="30-year" />
-                  <Tooltip contentStyle={tooltipStyle()} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : <EmptyState />}
-          </Panel>
-
-          <Panel title="10Y - 2Y Spread" subtitle="A negative spread indicates an inverted yield curve.">
-            {yieldSeries.length ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={yieldSeries}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11, fill: COLORS.muted }}
-                    tickFormatter={(value) => value?.slice(0, 4)}
-                    interval={tickInterval(yieldSeries.length, 12)}
-                  />
-                  <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} tickFormatter={(value) => `${value}%`} />
-                  <ReferenceLine y={0} stroke={COLORS.red} strokeDasharray="4 4" />
-                  <RecessionBands />
-                  <Area
-                    type="monotone"
-                    dataKey="spread_10y_2y"
-                    stroke={COLORS.green}
-                    fill={COLORS.green}
-                    fillOpacity={0.08}
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Tooltip contentStyle={tooltipStyle()} formatter={(value) => [`${value?.toFixed(2)}%`, 'Spread']} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : <EmptyState />}
-          </Panel>
-        </>
-      )}
-
-      {tab === 'model' && (
-        <>
-          <section className="hero-grid compact">
-            <StatCard title="AUC (CV)" value={formatNumber(model?.cv_metrics?.gb_auc_mean, 3)} detail="Gradient boosting" />
-            <StatCard title="Brier score" value={formatNumber(model?.full_metrics?.brier, 3)} detail="Lower is better calibrated" />
-            <StatCard title="Accuracy" value={formatPercent(model?.full_metrics?.accuracy)} detail="Full-sample diagnostic" />
-            <StatCard
-              title="Current probability"
-              value={formatPercent(model?.current?.probability)}
-              detail={model?.current?.assessment}
-              tone={risk.tone}
-            />
-          </section>
-
-          <section className="content-grid">
-            <Panel title="Feature Importance" subtitle="Top gradient boosting predictors." className="wide">
-              {featureImportance.length ? (
-                <ResponsiveContainer width="100%" height={360}>
-                  <BarChart data={featureImportance} layout="vertical" margin={{ left: 145 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                    <XAxis type="number" tick={{ fontSize: 11, fill: COLORS.muted }} />
-                    <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: COLORS.ink }} width={135} />
-                    <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                      {featureImportance.map((_, index) => (
-                        <Cell key={index} fill={index < 3 ? COLORS.green : '#aab2c0'} />
-                      ))}
-                    </Bar>
-                    <Tooltip contentStyle={tooltipStyle()} formatter={(value) => [`${value}%`, 'Importance']} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <EmptyState />}
-            </Panel>
-
-            <Panel title="Calibration Curve" subtitle="Predicted vs observed frequency.">
-              {model?.calibration_curve?.length ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <ScatterChart>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                    <XAxis type="number" dataKey="predicted" tick={{ fontSize: 11, fill: COLORS.muted }} domain={[0, 1]} name="Predicted" />
-                    <YAxis type="number" dataKey="actual" tick={{ fontSize: 11, fill: COLORS.muted }} domain={[0, 1]} name="Actual" />
-                    <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} stroke={COLORS.grid} strokeDasharray="4 4" />
-                    <Scatter data={model.calibration_curve} fill={COLORS.green} r={5} />
-                    <Tooltip contentStyle={tooltipStyle()} />
-                  </ScatterChart>
-                </ResponsiveContainer>
-              ) : <EmptyState />}
-            </Panel>
-          </section>
-
-          <Panel title="Logistic Regression Coefficients" subtitle="Interpretable baseline features ranked by absolute coefficient.">
-            <div className="coefficient-grid">
-              {coefficients.map(([name, value]) => (
-                <div className="coefficient-row" key={name}>
-                  <span>{name.replace(/_/g, ' ')}</span>
-                  <strong className={value < 0 ? 'green' : 'red'}>{formatSigned(value, '', 3)}</strong>
-                </div>
-              ))}
+      <aside className="panel metrics-panel" aria-label="Current metrics">
+        <section className="metrics-section">
+          <h2>Current Signal</h2>
+          <div className="parameter-grid">
+            <div>
+              <span>Probability</span>
+              <strong className={risk.tone}>{formatPercent(probability)}</strong>
             </div>
-          </Panel>
-        </>
-      )}
-
-      {tab === 'eda' && (
-        <>
-          <Panel title="Correlation with Forward Recession" subtitle="How engineered indicators relate to the 12-month target.">
-            <div className="correlation-grid">
-              {correlations.map(([name, value]) => (
-                <div className="correlation-row" key={name}>
-                  <div className="mini-bar">
-                    <span style={{ width: `${Math.min(Math.abs(value) * 100, 100)}%`, background: value < 0 ? COLORS.green : COLORS.red }} />
-                  </div>
-                  <span>{name.replace(/_/g, ' ')}</span>
-                  <strong className={value < 0 ? 'green' : 'red'}>{formatSigned(value, '', 3)}</strong>
-                </div>
-              ))}
+            <div>
+              <span>10Y - 2Y</span>
+              <strong className={overview?.is_inverted ? 'red' : 'green'}>{spread10y2y === null ? '-' : formatSigned(spread10y2y, '%')}</strong>
             </div>
-          </Panel>
-
-          <section className="content-grid">
-            <Panel title="Spread Distribution" subtitle="Negative values represent inversion.">
-              {eda?.spread_distribution?.bins?.length ? (
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={eda.spread_distribution.bins.map((bin, index) => ({ bin, count: eda.spread_distribution.counts[index] }))}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.grid} />
-                    <XAxis dataKey="bin" tick={{ fontSize: 10, fill: COLORS.muted }} />
-                    <YAxis tick={{ fontSize: 11, fill: COLORS.muted }} />
-                    <ReferenceLine x={0} stroke={COLORS.red} strokeDasharray="4 4" />
-                    <Bar dataKey="count" radius={[3, 3, 0, 0]}>
-                      {eda.spread_distribution.bins.map((bin, index) => (
-                        <Cell key={index} fill={bin < 0 ? COLORS.red : COLORS.green} opacity={bin < 0 ? 0.72 : 0.82} />
-                      ))}
-                    </Bar>
-                    <Tooltip contentStyle={tooltipStyle()} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : <EmptyState />}
-            </Panel>
-
-            <Panel title="Statistical Checks" subtitle="A compact read on signal strength.">
-              <div className="metric-list large">
-                <span>T-test p-value <strong>{formatNumber(eda?.statistical_tests?.spread_ttest?.p_value, 6)}</strong></span>
-                <span>Chi-square p-value <strong>{formatNumber(eda?.statistical_tests?.inversion_chi2?.p_value, 6)}</strong></span>
-                <span>
-                  Average inversion lead time
-                  <strong>
-                    {eda?.inversion_lead_times?.length
-                      ? `${formatNumber(eda.inversion_lead_times.reduce((sum, item) => sum + item.lead_months, 0) / eda.inversion_lead_times.length, 1)} mo`
-                      : '-'}
-                  </strong>
-                </span>
-              </div>
-            </Panel>
-          </section>
-        </>
-      )}
-
-      {tab === 'notes' && (
-        <section className="notes-layout">
-          <Panel title="Why Synthetic Data?" subtitle="A practical portfolio constraint turned into a reproducibility feature.">
-            <p className="body-copy">
-              Real-world macro datasets require API keys, refresh schedules, and licensing decisions.
-              This project generates realistic synthetic data so reviewers can clone, run, and inspect the full pipeline without external credentials.
-            </p>
-          </Panel>
-
-          <Panel title="Architecture">
-            <ol className="step-list">
-              <li>Generate yield curves, recession labels, and macro indicators.</li>
-              <li>Engineer spreads, rolling averages, inversion flags, and lead-time features.</li>
-              <li>Train logistic regression and gradient boosting with time-series folds.</li>
-              <li>Serve model outputs through FastAPI and visualize them in React.</li>
-            </ol>
-          </Panel>
-
-          <Panel title="Next Additions">
-            <ul className="plain-list">
-              <li>Swap in live FRED series behind the same feature pipeline.</li>
-              <li>Add model cards and threshold sensitivity analysis.</li>
-              <li>Package scheduled static snapshots for low-cost hosting.</li>
-            </ul>
-          </Panel>
+          </div>
         </section>
-      )}
 
-      <footer className="app-footer">
-        <span>{BRAND} is an educational analytics project, not financial advice.</span>
-        <span>Built for transparent modeling, product thinking, and clear communication.</span>
-      </footer>
+        <section className="metrics-section">
+          <h2>Model Health</h2>
+          <div className="row-stack">
+            <div className="metric-row"><span>Gradient boosting AUC</span><strong>{auc === null ? '-' : auc.toFixed(3)}</strong></div>
+            <div className="metric-row"><span>Brier score</span><strong>{formatNumber(model?.full_metrics?.brier, 3)}</strong></div>
+            <div className="metric-row"><span>Accuracy</span><strong>{formatPercent(model?.full_metrics?.accuracy)}</strong></div>
+          </div>
+        </section>
+
+        <section className="metrics-section">
+          <h2>Key Inputs</h2>
+          <div className="row-stack compact">
+            <div className="metric-row"><span>Unemployment</span><strong>{formatRate(overview?.latest_indicators?.unemployment)}</strong></div>
+            <div className="metric-row"><span>CPI YoY</span><strong>{formatRate(overview?.latest_indicators?.cpi_yoy)}</strong></div>
+            <div className="metric-row"><span>GDP growth</span><strong>{formatRate(overview?.latest_indicators?.gdp_growth)}</strong></div>
+            <div className="metric-row"><span>ISM PMI</span><strong>{formatNumber(overview?.latest_indicators?.ism_pmi, 1)}</strong></div>
+          </div>
+        </section>
+
+        {tab === 'model' && coefficients.length ? (
+          <section className="metrics-section">
+            <h2>Top Coefficients</h2>
+            <div className="row-stack compact">
+              {coefficients.slice(0, 4).map(([name, value]) => (
+                <div className="metric-row" key={name}>
+                  <span>{name.replace(/_/g, ' ')}</span>
+                  <strong className={value < 0 ? 'green' : 'red'}>{formatSigned(value, '', 3)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {tab === 'eda' && correlations.length ? (
+          <section className="metrics-section">
+            <h2>Correlations</h2>
+            <div className="row-stack compact">
+              {correlations.slice(0, 4).map(([name, value]) => (
+                <div className="metric-row" key={name}>
+                  <span>{name.replace(/_/g, ' ')}</span>
+                  <strong className={value < 0 ? 'green' : 'red'}>{formatSigned(value, '', 3)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </aside>
+
+      <section className="insight-bar">
+        <div className="insight-icon" aria-hidden="true">%</div>
+        <div>
+          <h2>{insight.title}</h2>
+          <p>{insight.body}</p>
+        </div>
+        <div className="tip">
+          <strong>Tip</strong>
+          <span>{insight.tip}</span>
+        </div>
+      </section>
+      </div>
     </main>
   )
 }
