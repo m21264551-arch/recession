@@ -1,0 +1,23 @@
+name: Study checks
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: pip install -r api/requirements.txt
+      - run: python -m pytest -q
+      - run: python -m analysis.export
+      - run: python -m pytest -q
+      - run: npm ci && npm run build
+        working-directory: dashboard
+      - run: npx playwright install --with-deps chromium
+        working-directory: dashboard
+      - run: npm run test:browser
+        working-directory: dashboard

@@ -1,6 +1,9 @@
 #!/bin/bash
-trap 'kill $(jobs -p) 2>/dev/null; exit' INT TERM
-cd api && source venv/bin/activate && echo "→ API: http://localhost:8000" && uvicorn main:app --reload --port 8000 2>&1 | sed 's/^/[api] /' &
-sleep 4
-cd dashboard && echo "→ Dashboard: http://localhost:5173" && npm run dev 2>&1 | sed 's/^/[web] /' &
+set -euo pipefail
+cd "$(dirname "$0")"
+.venv/bin/python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 &
+study_api_pid=$!
+npm --prefix dashboard run dev -- --host 127.0.0.1 &
+study_web_pid=$!
+trap 'kill "$study_api_pid" "$study_web_pid" 2>/dev/null || true' EXIT INT TERM
 wait
