@@ -9,7 +9,7 @@ export default function HowToUse() {
  <ol className="guide-steps">
  <li><strong>Select a month.</strong> Drag across either chart, enter a date, or use the arrow buttons. Both charts follow the same marker.</li>
  <li><strong>Compare the estimate.</strong> Read the selected model, its historical-prevalence baseline, and whether a recession actually began in the following year.</li>
- <li><strong>Inspect a mistake.</strong> Open Results and select a false-alarm or missed month to return to its chart. Lower Brier scores mean smaller probability errors.</li>
+ <li><strong>Inspect a mistake.</strong> Go to Results and select a false-alarm or missed month to return to its chart. Lower Brier scores mean smaller probability errors.</li>
  </ol>
  <p>Grey bands mark months already in recession; the prediction concerns a new onset within twelve months. Missing estimates stay unavailable. This downloaded data vintage includes historical revisions and cannot recreate exactly what an analyst knew at the time.</p>
  <a href="#tool">Back to tool ↑</a></div>
