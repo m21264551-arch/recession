@@ -108,6 +108,8 @@ test("dragging and keyboard inspection keep both markers aligned",async({page})=
  await expect(page.locator('.selected h2')).toHaveText(`${(row.prediction.scores.logistic*100).toFixed(1)}%`);
  const markers=await page.locator('.date-marker > line').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('x1')));
  expect(markers[0]).toBe(markers[1]);
+ const margins=await page.locator('.date-marker').evaluateAll(nodes=>nodes.map(n=>({labelBottom:+n.querySelector('rect').getAttribute('y') + +n.querySelector('rect').getAttribute('height'),plotTop:+n.querySelector('line').getAttribute('y1')})));
+ expect(margins.every(m=>m.labelBottom<=m.plotTop)).toBe(true);
  await chart.press('ArrowRight');await expect(input).not.toHaveValue(date);
  const before=await input.inputValue();
  await chart.dispatchEvent('pointerdown',{pointerType:'touch',pointerId:5,clientX:box.x+100,clientY:box.y+70});
