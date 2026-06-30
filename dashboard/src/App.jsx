@@ -63,7 +63,7 @@ function HistoryChart({ rows, model, selected, onSelect }) {
     window.addEventListener("resize",resize);
     return () => {observer.disconnect();window.removeEventListener("resize",resize);};
   }, []);
-  const height = width < 500 ? 170 : Math.max(170,Math.min(310,(viewportHeight-370)/2)),
+  const height = width < 500 ? 150 : Math.max(170,Math.min(310,(viewportHeight-370)/2)),
     left = 54,
     right = 24,
     top = 24,
@@ -368,6 +368,7 @@ export default function App() {
   const rows = study?.rows.filter(r=>episodeOnset ? r.date >= shiftMonth(episodeOnset,-36) && r.date <= shiftMonth(episodeOnset,24) : +r.date.slice(0,4)>=+period) || [];
   const inspected = study?.rows.find((r) => r.date === selected),
     prediction = inspected?.prediction;
+  const nextOnset = study?.rows.find((row, i) => row.USREC === 1 && study.rows[i - 1]?.USREC === 0 && row.date > selected && row.date <= shiftMonth(selected, 12));
   const fold = study?.folds.find((f) => f.id === prediction?.foldId);
   const pickPeriod = (value) => {
     if(value==="episode") return;
@@ -411,16 +412,16 @@ export default function App() {
             <section id="history-section" aria-label="Historical signals">
                 <div className="chart-controls">
                   <label>
-                    Chart period
-                    <select
-                      value={episodeOnset ? "episode" : period}
-                      onChange={(e) => pickPeriod(e.target.value)}
-                    >
-                      {episodeOnset && <option value="episode">Episode window</option>}
-                      <option value="1953">Full history</option>
-                      <option value="1980">1980 onward</option>
-                      <option value="2000">2000 onward</option>
-                      <option value="2010">2010 onward</option>
+                    Period or recession
+                    <select value={episodeOnset ? `episode:${episodeOnset}` : period}
+                      onChange={e=>e.target.value.startsWith("episode:") ? inspectEpisode(e.target.value.slice(8)) : pickPeriod(e.target.value)}>
+                      <optgroup label="Historical periods">
+                        <option value="1953">Full history</option><option value="1980">1980 onward</option>
+                        <option value="2000">2000 onward</option><option value="2010">2010 onward</option>
+                      </optgroup>
+                      <optgroup label="Before and after a recession">
+                        {study.episodes.map(e=><option key={e.onset} value={`episode:${e.onset}`}>{month(e.onset)} recession</option>)}
+                      </optgroup>
                     </select>
                   </label>
                   <label>
@@ -495,9 +496,9 @@ export default function App() {
                       <p>{prediction ? "Onset within 12 months" : inspected?.unavailableReason}</p></div>
                     <dl className="selected-values"><div><dt>Baseline</dt><dd>{prediction ? percent(prediction.scores.prevalence) : "Unavailable"}</dd></div>
                       <div><dt>Spread</dt><dd>{format(inspected?.spread, 2)} pp</dd></div></dl>
-                    <p className="observed-outcome"><strong>Observed:</strong> {inspected?.target === null ? "future window incomplete" : inspected?.target === 1 ? "a recession began in the next 12 months" : "no recession began in the next 12 months"}.
+                    <p className="observed-outcome"><strong>Observed:</strong> {inspected?.target === null ? "future window incomplete" : inspected?.target === 1 ? `recession onset in ${nextOnset ? month(nextOnset.date) : "the next 12 months"}` : "no recession began in the next 12 months"}.
                       <span>{inspected?.USREC === 1 ? "Selected month: in recession." : "Selected month: outside recession."}</span></p>
-                    {fold && <details className="training"><summary>Training window</summary><p>Fit on {month(fold.trainingStart)} – {month(fold.trainingEnd)}. Training outcomes end {month(fold.lastTrainingOutcome)}. Refit January {fold.id}.</p></details>}
+
                   </section>
                   <HistoryChart
                     rows={rows}
@@ -507,14 +508,7 @@ export default function App() {
                   />
 
                 </div>
-                <div className="episode-navigation">
-                  <label>Recession episode
-                    <select value={episodeOnset} onChange={e=>inspectEpisode(e.target.value)}>
-                      <option value="">Choose an episode</option>
-                      {study.episodes.map(e=><option key={e.onset} value={e.onset}>{month(e.onset)}</option>)}
-                    </select>
-                  </label>
-                </div>
+                    {fold && <details className="training"><summary>About the {month(selected)} estimate</summary><p>Baseline is the recession-onset frequency in the eligible training history. The estimate concerns a new onset in the following 12 months.</p><p>Fit on {month(fold.trainingStart)} – {month(fold.trainingEnd)}. Training outcomes end {month(fold.lastTrainingOutcome)}. Refit January {fold.id}.</p></details>}
                 <div className="note">
                   Full-backtest Brier score:{" "}
                   {format(study.models[model].metrics.brier)}, compared with{" "}
@@ -565,6 +559,10 @@ export default function App() {
                     <Calibration
                       points={study.models[model].metrics.calibration}
                     />
+                    <details className="calibration-data"><summary>Calibration values</summary>
+                      <ResultsTable label="Calibration bins" heads={["Mean prediction", "Observed onsets", "Months"]}
+                        rows={study.models[model].metrics.calibration.map(p=>[percent(p.meanPrediction),percent(p.observedFrequency),p.n])} />
+                    </details>
                     <p className="caption">
                       Ten fixed probability bins; circle size reflects the
                       number of months. The diagonal represents agreement, not a
@@ -628,6 +626,7 @@ export default function App() {
                   windows; Brier remains defined. This target follows USREC’s
                   convention, not the date an NBER announcement was published.
                 </p>
+                <details className="annual-details"><summary>Annual evaluation details · {study.folds.length} refits</summary>
                 <h3>Annual evaluation windows</h3>
                 <ResultsTable
                   heads={[
@@ -653,6 +652,8 @@ export default function App() {
                   Undefined means an annual evaluation period contains only one
                   target class. No numeric substitute is inserted.
                 </p>
+                <a href="/api/study.json" download>Download complete study data ↓</a>
+                </details>
               </section>
               <section className="method" id="method-section">
                 <h2>Data and method</h2>
