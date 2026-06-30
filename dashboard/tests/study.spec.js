@@ -128,7 +128,7 @@ test("an error month opens its chart without changing the model",async({page})=>
  await page.getByRole('button',{name:label,exact:true}).click();
  await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue(date.slice(0,7));
  await expect(page.getByRole('combobox',{name:'Model',exact:true})).toHaveValue('boosting');
- await expect(page.getByRole('combobox',{name:'Chart period',exact:true})).toHaveValue('1953');
+ await expect(page.getByRole('combobox',{name:'Period or recession',exact:true})).toHaveValue('1953');
  await expect(page.getByLabel('Selected month',{exact:true})).toBeFocused();
 });
 
@@ -144,11 +144,11 @@ test('episode navigation retains the model and forecast identity across continuo
  await page.goto('/?source=portfolio');
  await page.getByRole('combobox',{name:'Model',exact:true}).selectOption('boosting');
  const episode=study.episodes.find(e=>e.onset>='2000');
- await page.getByRole('combobox',{name:'Recession episode',exact:true}).selectOption(episode.onset);
+ await page.getByRole('combobox',{name:'Period or recession',exact:true}).selectOption('episode:'+episode.onset);
  const previous=new Date(episode.onset+'T00:00:00Z');previous.setUTCMonth(previous.getUTCMonth()-1);
  const date=previous.toISOString().slice(0,10);
  await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue(date.slice(0,7));
- await expect(page.getByRole('combobox',{name:'Chart period',exact:true})).toHaveValue('episode');
+ await expect(page.getByRole('combobox',{name:'Period or recession',exact:true})).toHaveValue('episode:'+episode.onset);
  const row=study.rows.find(r=>r.date===date);
  await expect(page.locator('.selected h2')).toHaveText(`${(row.prediction.scores.boosting*100).toFixed(1)}%`);
  await page.getByRole('link',{name:'Results',exact:true}).click();
@@ -158,6 +158,23 @@ test('episode navigation retains the model and forecast identity across continuo
  await expect(page.getByRole('combobox',{name:'Model',exact:true})).toHaveValue('boosting');
  await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue(date.slice(0,7));
  await page.getByLabel('Selected month',{exact:true}).fill('1990-06');
- await expect(page.getByRole('combobox',{name:'Recession episode',exact:true})).toHaveValue('');
- await expect(page.getByRole('combobox',{name:'Chart period',exact:true})).toHaveValue('1953');
+ await expect(page.getByRole('combobox',{name:'Period or recession',exact:true})).toHaveValue('1953');
+});
+
+
+test('detailed evaluation is optional and selected-month explanations retain context',async({page})=>{
+ await page.goto('/');
+ await page.getByLabel('Selected month',{exact:true}).fill('2007-08');
+ const onset=study.episodes.find(e=>e.onset>'2007-08-01').onset;
+ const label=new Date(onset+'T00:00:00Z').toLocaleDateString('en-AU',{month:'short',year:'numeric',timeZone:'UTC'});
+ await expect(page.locator('.selected')).toContainText(`Observed: recession onset in ${label}`);
+ const annual=page.locator('details.annual-details');
+ await expect(annual).not.toHaveAttribute('open','');
+ await annual.locator('summary').click();
+ await expect(annual.locator('tbody tr')).toHaveCount(51);
+ await page.getByText('Calibration values',{exact:true}).click();
+ await expect(page.getByRole('region',{name:'Calibration bins'}).getByRole('table')).toBeVisible();
+ await page.getByRole('link',{name:'History',exact:true}).click();
+ await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue('2007-08');
+ await expect(page.locator('.views')).toBeInViewport();
 });

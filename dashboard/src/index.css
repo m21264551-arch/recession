@@ -21,10 +21,10 @@ button:disabled { opacity:.45; cursor:default; }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 
 /* Section navigation does not replace or unmount the study. */
-.views { display:flex; gap:28px; padding:4px 0; border-bottom:1px solid var(--line); margin-bottom:16px; }
+.views { position:sticky; top:0; z-index:5; background:#faf9f5; display:flex; gap:28px; padding:4px 0; border-bottom:1px solid var(--line); margin-bottom:16px; }
 .views a { display:inline-flex; align-items:center; min-height:44px; color:#344550; font-size:13px; text-decoration:none; }
 .views a:hover,.views a:focus-visible { color:var(--blue); text-decoration:underline; }
-#history-section,#results-section,#method-section { scroll-margin-top:16px; }
+#history-section,#results-section,#method-section { scroll-margin-top:70px; }
 .chart-controls { display:flex; flex-wrap:wrap; gap:16px; align-items:end; margin-bottom:12px; }
 label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weight:600; }
 .chart-controls select { font-size:13px; }
@@ -32,7 +32,7 @@ label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weigh
 .month-controls { display:flex; gap:6px; align-items:end; margin-left:auto; }
 .month-controls button { min-width:44px; }
 .month-controls input { font-size:13px; }
-.selected { display:grid; grid-template-columns: minmax(170px,.85fr) minmax(210px,1fr) minmax(300px,1.65fr) auto; gap:20px; align-items:center; padding:12px 0; margin-bottom:8px; border-block:1px solid var(--line); }
+.selected { display:grid; grid-template-columns: minmax(170px,.85fr) minmax(210px,1fr) minmax(300px,1.65fr); gap:20px; align-items:center; padding:12px 0; margin-bottom:8px; border-block:1px solid var(--line); }
 .selected .selection-label { margin:0; font-size:12px; color:#52626d; }
 .selected h2 { font-size:28px; margin:2px 0; color:var(--blue); font-variant-numeric:tabular-nums; }
 .selected p { font-size:13px; margin:2px 0; }
@@ -40,7 +40,7 @@ label { display:flex; flex-direction:column; gap:4px; font-size:12px; font-weigh
 .selected-values dt { font-size:12px; color:#52626d; }
 .selected-values dd { font-size:21px; font-weight:650; margin:4px 0; font-variant-numeric:tabular-nums; }
 .observed-outcome span { display:block; font-size:12px; color:#52626d; margin-top:5px; }
-.training { font-size:12px; max-width:220px; }
+.training { font-size:13px; max-width:75ch; margin-top:4px; }
 .training summary { white-space:nowrap; }
 .history { min-width:0; }
 .history h2 { font-size:14px; margin:0 0 3px; }
@@ -85,7 +85,7 @@ footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; 
 .guide-steps { padding-left:22px; margin:18px 0; }
 .guide-steps li { margin:12px 0; line-height:1.65; }
 .learning-guide a { display:inline-flex; align-items:center; min-height:44px; }
-#tool { scroll-margin-top:16px; }
+#tool { scroll-margin-top:70px; }
 @media(max-width:1199px) {
  .selected { grid-template-columns:180px 210px 1fr; gap:16px; }
  .training { grid-column:1/-1; max-width:75ch; }
@@ -103,7 +103,7 @@ footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; 
  .chart-controls select { width:100%; min-width:0; }
  .month-controls { grid-column:1/-1; grid-row:1; margin:0; }
  .month-controls label { flex:1; }
- .selected { grid-template-columns:1fr 1fr; gap:10px 16px; margin-bottom:16px; padding:12px 0; }
+ .selected { grid-template-columns:1fr 1fr; gap:6px 16px; margin-bottom:12px; padding:8px 0; }
  .selected-values { grid-template-columns:1fr; gap:6px; }
  .selected-values>div { display:flex; justify-content:space-between; align-items:center; }
  .selected-values dd { font-size:17px; margin:0; }
@@ -115,3 +115,14 @@ footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; 
  .snapshot { flex-direction:column; gap:6px; }
 }
 @media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; } }
+
+.annual-details { border-top:1px solid var(--line); margin-top:24px; }
+.annual-details summary { font-size:15px; }
+.calibration-data { margin:12px 0; }
+.calibration-data td { min-width:0; }
+.training p { font-size:13px; }
+@media(max-width:760px) {
+ .views { padding:0; }
+ .observed-outcome span { margin-top:3px; }
+ .chart-controls { margin-bottom:8px; }
+}
