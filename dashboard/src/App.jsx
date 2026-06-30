@@ -21,6 +21,19 @@ const month = (date) =>
     year: "numeric",
     timeZone: "UTC",
   });
+const shiftMonth = (date,delta) => { const d=new Date(`${date}T00:00:00Z`); d.setUTCMonth(d.getUTCMonth()+delta); return d.toISOString().slice(0,10); };
+function ErrorMonths({dates,onSelect}) {
+  const groups=[];
+  for(const date of dates) {
+    const last=groups.at(-1);
+    if(last && shiftMonth(last.at(-1),1)===date) last.push(date); else groups.push([date]);
+  }
+  return groups.length ? groups.map(group=><div className="error-episode" key={group[0]}>
+    <button onClick={()=>onSelect(group[0])}>{month(group[0])}{group.length>1 ? ` – ${month(group.at(-1))}` : ""}</button>
+    <span>{group.length} {group.length===1 ? "month" : "consecutive months"}</span>
+    {group.length>1 && <details><summary>Choose a month</summary><div className="error-months">{group.map(date=><button key={date} onClick={()=>onSelect(date)}>{month(date)}</button>)}</div></details>}
+  </div>) : "None at this threshold.";
+}
 
 function ResultsTable({ heads, rows, label = `${heads[0]} results` }) {
   return (
@@ -215,6 +228,9 @@ function HistoryChart({ rows, model, selected, onSelect }) {
           {probability && model !== "prevalence" && Number.isFinite(rows[chosen]?.prediction?.scores.prevalence) && <circle cx={x(chosen)} cy={y(rows[chosen].prediction.scores.prevalence)} r="3.5" fill="white" stroke={colours.prevalence} strokeWidth="2" />}
           </g>
         )}
+        {chosen >= 0 && chosen < rows.length-1 && <g className="forecast-window" role="img" aria-label="Following twelve-month target window">
+          <path d={`M${x(chosen+1)},${height-bottom-9}v6H${x(Math.min(rows.length-1,chosen+12))}v-6`} fill="none" stroke="#a95028" strokeWidth="2.5" />
+        </g>}
         {Array.from(
           new Set([
             0,
@@ -243,6 +259,7 @@ function HistoryChart({ rows, model, selected, onSelect }) {
       <h2>
         Yield spread <span>10-year − 3-month · percentage points · below zero: inverted</span>
       </h2>
+      <p className="chart-key">Grey: months in recession. Amber bracket: the selected month’s next-year target.</p>
       {chart(false)}
       <h2>
         Recession onset probability{" "}
@@ -345,6 +362,7 @@ export default function App() {
         )
           throw Error("Unsupported or incomplete study bundle");
         setStudy(d);
+        if (retry > 0) requestAnimationFrame(()=>document.getElementById("selected-month")?.focus());
       })
       .catch((e) => {
         if (e.name !== "AbortError") setError(e.message);
@@ -359,7 +377,6 @@ export default function App() {
     document.getElementById("selected-month")?.focus({preventScroll:true});
   };
   const inspectError = selectFromResults;
-  const shiftMonth=(date,delta)=>{const d=new Date(`${date}T00:00:00Z`);d.setUTCMonth(d.getUTCMonth()+delta);return d.toISOString().slice(0,10);};
   const inspectEpisode=(onset)=>{
     setEpisodeOnset(onset);
     if(onset) setSelected(shiftMonth(onset,-1));
@@ -394,7 +411,8 @@ export default function App() {
         {error ? (
           <div role="alert">
             <h2>Study unavailable</h2>
-            <p>{error}. The dashboard will not substitute synthetic results.</p>
+            <p>The saved historical study could not load. Try again to restore the charts.</p>
+            <details><summary>Technical details</summary><p>{error}</p></details>
             <button onClick={() => setRetry((r) => r + 1)}>
               Retry snapshot
             </button>{" "}
@@ -493,7 +511,8 @@ export default function App() {
                   <section className="selected" aria-label="Selected month results">
                     <div className="estimate"><p className="selection-label">{month(selected)}</p>
                       <h2>{prediction ? percent(prediction.scores[model]) : "Estimate unavailable"}</h2>
-                      <p>{prediction ? "Onset within 12 months" : inspected?.unavailableReason}</p></div>
+                      <p>{prediction ? "Onset within 12 months" : inspected?.unavailableReason}</p>
+                      <p className="target-period">{month(shiftMonth(selected,1))} – {month(shiftMonth(selected,12))}</p></div>
                     <dl className="selected-values"><div><dt>Baseline</dt><dd>{prediction ? percent(prediction.scores.prevalence) : "Unavailable"}</dd></div>
                       <div><dt>Spread</dt><dd>{format(inspected?.spread, 2)} pp</dd></div></dl>
                     <p className="observed-outcome"><strong>Observed:</strong> {inspected?.target === null ? "future window incomplete" : inspected?.target === 1 ? `recession onset in ${nextOnset ? month(nextOnset.date) : "the next 12 months"}` : "no recession began in the next 12 months"}.
@@ -508,6 +527,12 @@ export default function App() {
                   />
 
                 </div>
+                <div className="historical-examples"><span>Inspect a contrasting case:</span>
+                  {study.errors[model].falseAlarmMonths.length>0 && <button onClick={()=>inspectError(study.errors[model].falseAlarmMonths.at(-1))}>False alarm</button>}
+                  {study.errors[model].missedPositiveMonths.length>0 && <button onClick={()=>inspectError(study.errors[model].missedPositiveMonths[0])}>Missed month</button>}
+                  <a href="#results-section">Check calibration ↓</a>
+                </div>
+                {nextOnset?.date === "2020-03-01" && <p className="caption">This window includes the pandemic recession. An earlier yield signal does not establish that it anticipated the pandemic’s cause.</p>}
                     {fold && <details className="training"><summary>About the {month(selected)} estimate</summary><p>Baseline is the recession-onset frequency in the eligible training history. The estimate concerns a new onset in the following 12 months.</p><p>Fit on {month(fold.trainingStart)} – {month(fold.trainingEnd)}. Training outcomes end {month(fold.lastTrainingOutcome)}. Refit January {fold.id}.</p></details>}
                 <div className="note">
                   Full-backtest Brier score:{" "}
@@ -518,6 +543,7 @@ export default function App() {
               </section>
             <section id="results-section" aria-labelledby="results-title">
                 <h2 id="results-title">Backtest results</h2>
+                <p className="metric-reading">Ranking: ROC-AUC and average precision measure whether onset windows score above other months. Probability error: Brier measures squared error in the estimates; lower is better. Neither a high AUC nor an exact percentage establishes calibration.</p>
                 <p>
                   These metrics cover the full evaluation history, independently
                   of the chart period. The overlapping 12-month targets are
@@ -593,11 +619,11 @@ export default function App() {
                     </p>
                     <details>
                       <summary>Inspect false-alarm months</summary>
-                      <div className="error-months">{study.errors[model].falseAlarmMonths.length ? study.errors[model].falseAlarmMonths.map((date) => <button key={date} onClick={() => inspectError(date)}>{month(date)}</button>) : "None at this threshold."}</div>
+                      <ErrorMonths dates={study.errors[model].falseAlarmMonths} onSelect={inspectError} />
                     </details>
                     <details>
                       <summary>Inspect missed positive months</summary>
-                      <div className="error-months">{study.errors[model].missedPositiveMonths.length ? study.errors[model].missedPositiveMonths.map((date) => <button key={date} onClick={() => inspectError(date)}>{month(date)}</button>) : "None at this threshold."}</div>
+                      <ErrorMonths dates={study.errors[model].missedPositiveMonths} onSelect={inspectError} />
                     </details>
                   </section>
                 </div>
@@ -655,6 +681,7 @@ export default function App() {
                 <a href="/api/study.json" download>Download complete study data ↓</a>
                 </details>
               </section>
+              <HowToUse />
               <section className="method" id="method-section">
                 <h2>Data and method</h2>
                 <div className="snapshot">
@@ -676,6 +703,7 @@ export default function App() {
                   schema v{study.schemaVersion}
                 </p>
                 <p>{study.protocol.vintageLimitation}</p>
+                <details className="method-detail"><summary>Series, target and model settings</summary>
                 <h3>Data and units</h3>
                 <p>
                   {study.protocol.spreadDefinition} These are two yields, not a
@@ -691,8 +719,7 @@ export default function App() {
                   ])}
                 />
                 <p>
-                  No invented GDP, inflation, unemployment or PMI series enter
-                  this study. Missing values are preserved; models skip rows
+                  The study uses GS10, TB3MS and USREC. Missing values are preserved; models skip rows
                   without all required features. Synthetic histories are
                   restricted to test fixtures.
                 </p>
@@ -718,7 +745,8 @@ export default function App() {
                   42. Settings were fixed before running this reconstruction; no
                   hyperparameter selection uses evaluation periods.
                 </p>
-                <h3>Reproduce or update explicitly</h3>
+                </details>
+                <details className="method-detail"><summary>Reproduce this snapshot</summary>
                 <pre tabIndex={0} role="region" aria-label="Reproduction commands">
                   python -m analysis.acquire{"\n"}python -m analysis.export
                   {"\n"}python -m pytest{"\n"}cd dashboard && npm ci && npm run
@@ -730,6 +758,7 @@ export default function App() {
                   identity. Public browsing reads the committed artifact and
                   does not contact FRED or train on startup.
                 </p>
+                </details>
                 <h3>Limitations</h3>
                 <p>
                   There are few recession episodes. Final recession
@@ -755,7 +784,7 @@ export default function App() {
             </footer>
           </>
         )}
-      <HowToUse />
+      {(!study || error) && <HowToUse />}
       </main>
     </>
   );

@@ -125,6 +125,7 @@ test("an error month opens its chart without changing the model",async({page})=>
  await page.getByText('Inspect false-alarm months',{exact:true}).click();
  const date=study.errors.boosting.falseAlarmMonths[0];
  const label=new Date(date+'T00:00:00Z').toLocaleDateString('en-AU',{month:'short',year:'numeric',timeZone:'UTC'});
+ await page.getByText('Choose a month',{exact:true}).first().click();
  await page.getByRole('button',{name:label,exact:true}).click();
  await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue(date.slice(0,7));
  await expect(page.getByRole('combobox',{name:'Model',exact:true})).toHaveValue('boosting');
@@ -177,4 +178,19 @@ test('detailed evaluation is optional and selected-month explanations retain con
  await page.getByRole('link',{name:'History',exact:true}).click();
  await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue('2007-08');
  await expect(page.locator('.views')).toBeInViewport();
+});
+
+test('the selected estimate names and draws its next-twelve-month interval',async({page})=>{
+ await page.goto('/');await page.getByLabel('Selected month',{exact:true}).fill('2019-08');
+ await expect(page.locator('.target-period')).toHaveText('Sept 2019 – Aug 2020');
+ await expect(page.locator('.forecast-window')).toHaveCount(2);
+ await expect(page.getByText(/does not establish that it anticipated/)).toBeVisible();
+ await page.getByRole('button',{name:/False alarm/}).click();
+ await expect(page.getByRole('combobox',{name:'Model',exact:true})).toHaveValue('logistic');
+});
+test('snapshot retry restores focus to the recovered month control',async({page})=>{
+ await page.route('**/api/study.json',r=>r.abort());await page.goto('/');
+ await expect(page.getByRole('button',{name:'Retry snapshot'})).toBeVisible();
+ await page.unroute('**/api/study.json');await page.getByRole('button',{name:'Retry snapshot'}).click();
+ await expect(page.getByLabel('Selected month',{exact:true})).toBeFocused();
 });
