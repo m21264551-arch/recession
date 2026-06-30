@@ -53,14 +53,17 @@ function HistoryChart({ rows, model, selected, onSelect }) {
   const container = useRef(null);
   const gesture = useRef(null);
   const [width, setWidth] = useState(900);
+  const [viewportHeight,setViewportHeight] = useState(window.innerHeight);
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) =>
       setWidth(Math.max(300, entry.contentRect.width)),
     );
     if (container.current) observer.observe(container.current);
-    return () => observer.disconnect();
+    const resize=()=>setViewportHeight(window.innerHeight);
+    window.addEventListener("resize",resize);
+    return () => {observer.disconnect();window.removeEventListener("resize",resize);};
   }, []);
-  const height = width < 500 ? 170 : 190,
+  const height = width < 500 ? 170 : Math.max(170,Math.min(310,(viewportHeight-370)/2)),
     left = 54,
     right = 24,
     top = 24,
@@ -320,7 +323,7 @@ export default function App() {
   const [study, setStudy] = useState(null),
     [error, setError] = useState(""),
     [retry, setRetry] = useState(0);
-  const [view, setView] = useState("signals"),
+  const [episodeOnset, setEpisodeOnset] = useState(""),
     [period, setPeriod] = useState("2000"),
     [model, setModel] = useState("logistic"),
     [selected, setSelected] = useState("2019-08-01");
@@ -348,22 +351,27 @@ export default function App() {
       });
     return () => controller.abort();
   }, [retry]);
-  const returnToMonth = useRef(false);
-  useEffect(() => {
-    if (view === "signals" && returnToMonth.current) {
-      returnToMonth.current=false;
-      document.getElementById("selected-month")?.focus();
-    }
-  }, [view]);
-  const inspectError = (date) => {
+  const selectFromResults = (date) => {
+    setEpisodeOnset("");
     if (+date.slice(0,4) < +period) setPeriod("1953");
-    setSelected(date); returnToMonth.current=true; setView("signals");
+    setSelected(date);
+    document.getElementById("history-section")?.scrollIntoView({block:"start"});
+    document.getElementById("selected-month")?.focus({preventScroll:true});
   };
-  const rows = study?.rows.filter((r) => +r.date.slice(0, 4) >= +period) || [];
+  const inspectError = selectFromResults;
+  const shiftMonth=(date,delta)=>{const d=new Date(`${date}T00:00:00Z`);d.setUTCMonth(d.getUTCMonth()+delta);return d.toISOString().slice(0,10);};
+  const inspectEpisode=(onset)=>{
+    setEpisodeOnset(onset);
+    if(onset) setSelected(shiftMonth(onset,-1));
+    else if(+selected.slice(0,4)<+period) setPeriod("1953");
+  };
+  const rows = study?.rows.filter(r=>episodeOnset ? r.date >= shiftMonth(episodeOnset,-36) && r.date <= shiftMonth(episodeOnset,24) : +r.date.slice(0,4)>=+period) || [];
   const inspected = study?.rows.find((r) => r.date === selected),
     prediction = inspected?.prediction;
   const fold = study?.folds.find((f) => f.id === prediction?.foldId);
   const pickPeriod = (value) => {
+    if(value==="episode") return;
+    setEpisodeOnset("");
     setPeriod(value);
     if (+selected.slice(0, 4) < +value) setSelected(`${value}-01-01`);
   };
@@ -381,7 +389,7 @@ export default function App() {
         </nav>
       </header>
       <main id="tool" tabIndex={-1}>
-        <h1>Compare yield-curve signals with subsequent recession onsets.</h1>
+        <h1 className="sr-only">Compare yield-curve signals with subsequent recession onsets.</h1>
         {error ? (
           <div role="alert">
             <h2>Study unavailable</h2>
@@ -397,30 +405,18 @@ export default function App() {
           <p role="status">Loading the historical study…</p>
         ) : (
           <>
-            <nav className="views" aria-label="Study views">
-              {[
-                ["signals", "Historical signals"],
-                ["backtest", "Results"],
-                ["method", "Data and method"],
-              ].map(([key, title]) => (
-                <button
-                  key={key}
-                  aria-pressed={view === key}
-                  onClick={() => setView(key)}
-                >
-                  {title}
-                </button>
-              ))}
+            <nav className="views" aria-label="Study sections">
+              <a href="#history-section">History</a><a href="#results-section">Results</a><a href="#method-section">Data and method</a>
             </nav>
-            {view === "signals" && (
-              <>
+            <section id="history-section" aria-label="Historical signals">
                 <div className="chart-controls">
                   <label>
                     Chart period
                     <select
-                      value={period}
+                      value={episodeOnset ? "episode" : period}
                       onChange={(e) => pickPeriod(e.target.value)}
                     >
+                      {episodeOnset && <option value="episode">Episode window</option>}
                       <option value="1953">Full history</option>
                       <option value="1980">1980 onward</option>
                       <option value="2000">2000 onward</option>
@@ -452,6 +448,7 @@ export default function App() {
                           const date = `${e.target.value}-01`;
                           if (study.rows.some((r) => r.date === date)) {
                             setSelected(date);
+                            if(episodeOnset && !rows.some(r=>r.date===date)) setEpisodeOnset("");
                             if (+date.slice(0, 4) < +period) setPeriod("1953");
                           }
                         }}
@@ -510,17 +507,23 @@ export default function App() {
                   />
 
                 </div>
+                <div className="episode-navigation">
+                  <label>Recession episode
+                    <select value={episodeOnset} onChange={e=>inspectEpisode(e.target.value)}>
+                      <option value="">Choose an episode</option>
+                      {study.episodes.map(e=><option key={e.onset} value={e.onset}>{month(e.onset)}</option>)}
+                    </select>
+                  </label>
+                </div>
                 <div className="note">
                   Full-backtest Brier score:{" "}
                   {format(study.models[model].metrics.brier)}, compared with{" "}
                   {format(study.models.prevalence.metrics.brier)} for prevalence
                   (lower is better). See Results for errors and calibration.
                 </div>
-              </>
-            )}
-            {view === "backtest" && (
-              <>
-                <h2>Backtest results</h2>
+              </section>
+            <section id="results-section" aria-labelledby="results-title">
+                <h2 id="results-title">Backtest results</h2>
                 <p>
                   These metrics cover the full evaluation history, independently
                   of the chart period. The overlapping 12-month targets are
@@ -611,7 +614,7 @@ export default function App() {
                     "Brier ↓",
                   ]}
                   rows={study.episodes.map((e) => [
-                    month(e.onset),
+                    <button className="episode-link" onClick={()=>{inspectEpisode(e.onset);document.getElementById("history-section").scrollIntoView({block:"start"});document.getElementById("selected-month").focus({preventScroll:true});}}>{month(e.onset)}</button>,
                     `${e.evaluatedMonths}/12`,
                     percent(e.models[model].meanProbability),
                     percent(e.models[model].maxProbability),
@@ -650,10 +653,8 @@ export default function App() {
                   Undefined means an annual evaluation period contains only one
                   target class. No numeric substitute is inserted.
                 </p>
-              </>
-            )}
-            {view === "method" && (
-              <section className="method">
+              </section>
+              <section className="method" id="method-section">
                 <h2>Data and method</h2>
                 <div className="snapshot">
                   <span>
@@ -717,7 +718,7 @@ export default function App() {
                   hyperparameter selection uses evaluation periods.
                 </p>
                 <h3>Reproduce or update explicitly</h3>
-                <pre>
+                <pre tabIndex={0} role="region" aria-label="Reproduction commands">
                   python -m analysis.acquire{"\n"}python -m analysis.export
                   {"\n"}python -m pytest{"\n"}cd dashboard && npm ci && npm run
                   build
@@ -742,7 +743,6 @@ export default function App() {
                   Snapshot SHA256: <code>{study.snapshot.sha256}</code>
                 </p>
               </section>
-            )}
             <footer>
               <a href="/api/study.json" download="yield-curve-study-v1.json">
                 Download data ↓
