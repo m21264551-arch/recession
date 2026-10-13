@@ -6,7 +6,7 @@
   color: #273844;
   background: #fff;
   font-synthesis: none;
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.5;
 }
 * {
@@ -154,7 +154,7 @@ label {
 }
 .history h2 span {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: #52626d;
   font-weight: 400;
   margin-top: 2px;
@@ -167,7 +167,7 @@ label {
   margin-bottom: 8px;
 }
 svg text {
-  font: 11px system-ui;
+  font: 12px system-ui;
   fill: #50606d;
 }
 .caption {
@@ -308,7 +308,7 @@ footer {
   .mode {
     order: 3;
     width: 100%;
-    font-size: 11px;
+    font-size: 12px;
   }
   header nav {
     gap: 10px;
@@ -353,7 +353,7 @@ footer {
     gap: 6px;
   }
   .scrubber {
-    font-size: 11px;
+    font-size: 12px;
   }
   .scrubber input {
     width: 100px;
@@ -379,3 +379,36 @@ footer {
 .learning-guide a { display:inline-flex; align-items:center; min-height:44px; text-decoration:underline; text-underline-offset:4px; }
 #tool { scroll-margin-top:16px; }
 @media(max-width:760px) { .guide-steps { grid-template-columns:1fr; gap:18px; } header { flex-wrap:wrap; } header nav { flex-wrap:wrap; } }
+
+/* Keep date, estimate and observation together before the chart on narrow screens. */
+.history { grid-column:1; grid-row:1; }
+.selected { grid-column:2; grid-row:1; }
+.history svg { touch-action:pan-y; }
+.zero-label { paint-order:stroke; stroke:white; stroke-width:4px; fill:#6b503a; }
+.selected-values { display:grid; gap:12px; margin:14px 0; }
+.selected-values > div { display:flex; justify-content:space-between; gap:12px; }
+.selected-values dt { color:#52626d; font-size:13px; }
+.selected-values dd { margin:0; font-weight:650; font-variant-numeric:tabular-nums; }
+.observed-outcome span { display:block; color:#52626d; margin-top:6px; font-size:12px; }
+.error-months { display:flex; flex-wrap:wrap; gap:8px; padding:10px 0; }
+.error-months button { min-height:44px; }
+@media(max-width:760px) {
+ .selected { grid-column:1; grid-row:1; grid-template-columns:1fr 1fr; gap:8px 16px; padding:12px 0; }
+ .history { grid-column:1; grid-row:2; }
+ .observed-outcome,.training { grid-column:1 / -1; }
+ .selected p { margin:4px 0; }
+ .selected-values { align-self:center; margin:0; }
+ .selected h2 { margin:2px 0; }
+ .training summary { padding:6px 0; }
+ .selected .training p { font-size:12px; }
+ .chart-controls { margin-bottom:8px; }
+}
+
+.yield-guide { display:grid; grid-template-columns:minmax(0,60ch) minmax(280px,1fr); gap:44px; align-items:center; }
+.yield-guide figure { margin:0; min-width:0; }
+.yield-guide svg { width:100%; max-height:360px; }
+.yield-guide svg text { font-size:15px; }
+.yield-guide figcaption { font-size:12px; color:#52626d; line-height:1.6; }
+.guide-steps { display:block; margin:18px 0; }
+.guide-steps li { margin:12px 0; line-height:1.65; }
+@media(max-width:760px) { .yield-guide { grid-template-columns:1fr; gap:16px; } .yield-guide figure { grid-row:1; } }

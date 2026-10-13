@@ -51,6 +51,7 @@ function ResultsTable({ heads, rows, label = `${heads[0]} results` }) {
 
 function HistoryChart({ rows, model, selected, onSelect }) {
   const container = useRef(null);
+  const gesture = useRef(null);
   const [width, setWidth] = useState(900);
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) =>
@@ -66,6 +67,11 @@ function HistoryChart({ rows, model, selected, onSelect }) {
     bottom = 40;
   const x = (i) =>
     left + (i * (width - left - right)) / Math.max(1, rows.length - 1);
+  function selectPointer(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fraction = (((event.clientX-rect.left)*width)/rect.width-left)/(width-left-right);
+    onSelect(rows[Math.max(0,Math.min(rows.length-1,Math.round(fraction*(rows.length-1))))].date);
+  }
   const chart = (probability) => {
     const min = probability
       ? 0
@@ -94,21 +100,39 @@ function HistoryChart({ rows, model, selected, onSelect }) {
         .join(" ");
     };
     const chosen = rows.findIndex((r) => r.date === selected);
+    const selectedValue = probability ? rows[chosen]?.prediction?.scores[model] : rows[chosen]?.spread;
+    const labelX = Math.max(left+4, Math.min(width-right-92, x(chosen)+10));
+    const labelY = Number.isFinite(selectedValue) ? Math.max(top+17, y(selectedValue)-12) : top+17;
     return (
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
-        onPointerDown={(event) => {
-          const rect = event.currentTarget.getBoundingClientRect();
-          const fraction =
-            (((event.clientX - rect.left) * width) / rect.width - left) /
-            (width - left - right);
-          const index = Math.max(
-            0,
-            Math.min(rows.length - 1, Math.round(fraction * (rows.length - 1))),
-          );
-          onSelect(rows[index].date);
+        tabIndex={0}
+        aria-keyshortcuts="ArrowLeft ArrowRight Home End"
+        onKeyDown={(event) => {
+          const index = Math.max(0, rows.findIndex((r) => r.date === selected));
+          const next = event.key === "Home" ? 0 : event.key === "End" ? rows.length - 1 : event.key === "ArrowLeft" ? index - 1 : event.key === "ArrowRight" ? index + 1 : null;
+          if (next !== null) { event.preventDefault(); onSelect(rows[Math.max(0, Math.min(rows.length-1, next))].date); }
         }}
+        onPointerDown={(event) => {
+          gesture.current = { id:event.pointerId, x:event.clientX, y:event.clientY, horizontal:event.pointerType !== "touch", vertical:false };
+          if (event.pointerType !== "touch") { event.currentTarget.setPointerCapture(event.pointerId); selectPointer(event); }
+        }}
+        onPointerMove={(event) => {
+          const g = gesture.current;
+          if (!g || g.id !== event.pointerId || g.vertical) return;
+          const dx = Math.abs(event.clientX-g.x), dy = Math.abs(event.clientY-g.y);
+          if (!g.horizontal && dy > 8 && dy > dx) { g.vertical=true; return; }
+          if (!g.horizontal && dx > 8 && dx > dy) { g.horizontal=true; event.currentTarget.setPointerCapture(event.pointerId); }
+          if (g.horizontal) selectPointer(event);
+        }}
+        onPointerUp={(event) => {
+          const g=gesture.current;
+          if (g && !g.vertical) selectPointer(event);
+          if(event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+          gesture.current=null;
+        }}
+        onPointerCancel={() => { gesture.current=null; }}
         aria-label={
           probability
             ? "Out-of-sample probability of recession onset in the next 12 months, with historical prevalence baseline"
@@ -162,24 +186,30 @@ function HistoryChart({ rows, model, selected, onSelect }) {
           />
         )}
         {!probability && (
-          <line
+          <g><line
             x1={left}
             x2={width - right}
             y1={y(0)}
             y2={y(0)}
             stroke="#987557"
             strokeDasharray="5 5"
-          />
+          /><text x={left+8} y={y(0)+16} className="zero-label">0 · inversion below</text></g>
         )}
         {chosen >= 0 && (
-          <line
+          <g className="date-marker"><line
             x1={x(chosen)}
             x2={x(chosen)}
             y1={top}
             y2={height - bottom}
-            stroke="#a95028"
-            strokeDasharray="3 3"
+            stroke="#a95028" strokeWidth="2"
           />
+          {Number.isFinite(selectedValue) && <>
+            <circle data-selected-point={probability ? "probability" : "spread"} cx={x(chosen)} cy={y(selectedValue)} r="4.5" fill={probability ? colours[model] : "#263c4b"} stroke="white" strokeWidth="2" />
+            <rect x={labelX-3} y={labelY-15} width="90" height="21" rx="2" fill="white" />
+            <text x={labelX} y={labelY} fontWeight="700">{probability ? percent(selectedValue) : `${format(selectedValue,2)} pp`}</text>
+          </>}
+          {probability && model !== "prevalence" && Number.isFinite(rows[chosen]?.prediction?.scores.prevalence) && <circle cx={x(chosen)} cy={y(rows[chosen].prediction.scores.prevalence)} r="3.5" fill="white" stroke={colours.prevalence} strokeWidth="2" />}
+          </g>
         )}
         {Array.from(
           new Set([
@@ -317,6 +347,17 @@ export default function App() {
       });
     return () => controller.abort();
   }, [retry]);
+  const returnToMonth = useRef(false);
+  useEffect(() => {
+    if (view === "signals" && returnToMonth.current) {
+      returnToMonth.current=false;
+      document.getElementById("selected-month")?.focus();
+    }
+  }, [view]);
+  const inspectError = (date) => {
+    if (+date.slice(0,4) < +period) setPeriod("1953");
+    setSelected(date); returnToMonth.current=true; setView("signals");
+  };
   const rows = study?.rows.filter((r) => +r.date.slice(0, 4) >= +period) || [];
   const inspected = study?.rows.find((r) => r.date === selected),
     prediction = inspected?.prediction;
@@ -402,7 +443,7 @@ export default function App() {
                     <label>
                       Selected month
                       <input
-                        type="month"
+                        id="selected-month" type="month"
                         value={selected.slice(0, 7)}
                         min={study.rows[0].date.slice(0, 7)}
                         max={study.rows.at(-1).date.slice(0, 7)}
@@ -450,70 +491,23 @@ export default function App() {
                   </div>
                 </div>
                 <div className="signal-layout">
+                  <section className="selected" aria-label="Selected month results">
+                    <div className="estimate"><p className="selection-label">{month(selected)}</p>
+                      <h2>{prediction ? percent(prediction.scores[model]) : "Estimate unavailable"}</h2>
+                      <p>{prediction ? "Onset within 12 months" : inspected?.unavailableReason}</p></div>
+                    <dl className="selected-values"><div><dt>Baseline</dt><dd>{prediction ? percent(prediction.scores.prevalence) : "Unavailable"}</dd></div>
+                      <div><dt>Spread</dt><dd>{format(inspected?.spread, 2)} pp</dd></div></dl>
+                    <p className="observed-outcome"><strong>Observed:</strong> {inspected?.target === null ? "future window incomplete" : inspected?.target === 1 ? "a recession began in the next 12 months" : "no recession began in the next 12 months"}.
+                      <span>{inspected?.USREC === 1 ? "Selected month: in recession." : "Selected month: outside recession."}</span></p>
+                    {fold && <details className="training"><summary>Training window</summary><p>Fit on {month(fold.trainingStart)} – {month(fold.trainingEnd)}. Training outcomes end {month(fold.lastTrainingOutcome)}. Refit January {fold.id}.</p></details>}
+                  </section>
                   <HistoryChart
                     rows={rows}
                     model={model}
                     selected={selected}
                     onSelect={setSelected}
                   />
-                  <section className="selected">
-                    <div>
-                      <p className="selection-label">
-                        Selected month · {month(selected)}
-                      </p>
-                      <h2>
-                        {prediction
-                          ? percent(prediction.scores[model])
-                          : "Estimate unavailable"}
-                      </h2>
-                      <p>
-                        {prediction
-                          ? "Estimated probability of an onset during the next 12 months."
-                          : inspected?.unavailableReason}
-                      </p>
-                    </div>
-                    <div>
-                      <p>
-                        Baseline:{" "}
-                        <strong>
-                          {prediction
-                            ? percent(prediction.scores.prevalence)
-                            : "Unavailable"}
-                        </strong>
-                      </p>
-                      <p>
-                        Spread:{" "}
-                        <strong>
-                          {format(inspected?.spread, 2)} percentage points.
-                        </strong>{" "}
-                        {inspected?.USREC === 1
-                          ? "This month was in a recession."
-                          : "This month was outside a recession."}
-                      </p>
-                      <p>
-                        Observed target:{" "}
-                        <strong>
-                          {inspected?.target === null
-                            ? "future window incomplete"
-                            : inspected?.target === 1
-                              ? "a recession began in the next 12 months"
-                              : "no recession began in the next 12 months"}
-                          .
-                        </strong>
-                      </p>
-                      {fold && (
-                        <details>
-                          <summary>Training window</summary>
-                          <p>
-                            Fit on {month(fold.trainingStart)} –{" "}
-                            {month(fold.trainingEnd)}. Training outcomes end{" "}
-                            {month(fold.lastTrainingOutcome)}. Refit January{" "}
-                            {fold.id}.
-                          </p>
-                        </details>
-                      )}
-                    </div>
-                  </section>
+
                 </div>
                 <div className="note">
                   Full-backtest Brier score:{" "}
@@ -597,19 +591,11 @@ export default function App() {
                     </p>
                     <details>
                       <summary>Inspect false-alarm months</summary>
-                      <p>
-                        {study.errors[model].falseAlarmMonths
-                          .map(month)
-                          .join(" · ") || "None at this threshold."}
-                      </p>
+                      <div className="error-months">{study.errors[model].falseAlarmMonths.length ? study.errors[model].falseAlarmMonths.map((date) => <button key={date} onClick={() => inspectError(date)}>{month(date)}</button>) : "None at this threshold."}</div>
                     </details>
                     <details>
                       <summary>Inspect missed positive months</summary>
-                      <p>
-                        {study.errors[model].missedPositiveMonths
-                          .map(month)
-                          .join(" · ") || "None at this threshold."}
-                      </p>
+                      <div className="error-months">{study.errors[model].missedPositiveMonths.length ? study.errors[model].missedPositiveMonths.map((date) => <button key={date} onClick={() => inspectError(date)}>{month(date)}</button>) : "None at this threshold."}</div>
                     </details>
                   </section>
                 </div>

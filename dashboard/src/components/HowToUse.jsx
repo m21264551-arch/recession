@@ -1,13 +1,27 @@
-export default function HowToUse() { return (
-<section id="how-to-use" className="learning-guide" aria-labelledby="guide-title" tabIndex={-1}>
-<h2 id="guide-title">How to use Yield Curve Study</h2>
-<p>This study asks whether the difference between long- and short-term interest rates helps anticipate recession onsets. The upper chart shows the 10-year Treasury yield minus the 3-month bill rate, in percentage points. A negative spread means the shorter-term rate was higher: an inversion.</p>
-<ol className="guide-steps">
-<li><h3>Select a historical month</h3><p>Click either chart, enter a month, or use the previous and next buttons. The shared marker keeps both charts aligned. Change Chart period to look more closely at a particular part of the record.</p></li>
-<li><h3>Compare the estimate</h3><p>The lower chart estimates whether a recession will begin within the following 12 months. Compare the chosen model with historical prevalence, the baseline based on earlier training outcomes. The selected-month panel puts both estimates beside what actually happened.</p></li>
-<li><h3>Inspect the errors</h3><p>Open Results to compare performance, calibration, false alarms, and missed positive months. Lower Brier scores mean smaller probability errors. Expand Training window on the main view to inspect the observations used for that month's model.</p></li>
-</ol>
-<p><strong>Reading the charts:</strong> grey bands mark months already in recession. They are different from the forward-looking onset target. Gaps indicate unavailable estimates; select the month to find the reason.</p>
-<p>This is a retrospective backtest using a downloaded data vintage. Historical revisions and recession classifications prevent it from recreating exactly what an analyst knew at the time.</p>
-<a href="#tool">Back to tool ↑</a></section>
-); }
+const observations = [{"date":"2018-01-01","spread":1.1700000000000002,"recession":0.0},{"date":"2018-02-01","spread":1.2899999999999998,"recession":0.0},{"date":"2018-03-01","spread":1.14,"recession":0.0},{"date":"2018-04-01","spread":1.11,"recession":0.0},{"date":"2018-05-01","spread":1.1199999999999999,"recession":0.0},{"date":"2018-06-01","spread":1.0100000000000002,"recession":0.0},{"date":"2018-07-01","spread":0.9300000000000002,"recession":0.0},{"date":"2018-08-01","spread":0.8600000000000003,"recession":0.0},{"date":"2018-09-01","spread":0.8700000000000001,"recession":0.0},{"date":"2018-10-01","spread":0.8999999999999999,"recession":0.0},{"date":"2018-11-01","spread":0.79,"recession":0.0},{"date":"2018-12-01","spread":0.45999999999999996,"recession":0.0},{"date":"2019-01-01","spread":0.33999999999999986,"recession":0.0},{"date":"2019-02-01","spread":0.29000000000000004,"recession":0.0},{"date":"2019-03-01","spread":0.16999999999999993,"recession":0.0},{"date":"2019-04-01","spread":0.1499999999999999,"recession":0.0},{"date":"2019-05-01","spread":0.04999999999999982,"recession":0.0},{"date":"2019-06-01","spread":-0.10000000000000009,"recession":0.0},{"date":"2019-07-01","spread":-0.040000000000000036,"recession":0.0},{"date":"2019-08-01","spread":-0.32000000000000006,"recession":0.0},{"date":"2019-09-01","spread":-0.18999999999999995,"recession":0.0},{"date":"2019-10-01","spread":0.06000000000000005,"recession":0.0},{"date":"2019-11-01","spread":0.27,"recession":0.0},{"date":"2019-12-01","spread":0.32000000000000006,"recession":0.0},{"date":"2020-01-01","spread":0.24,"recession":0.0},{"date":"2020-02-01","spread":-0.020000000000000018,"recession":0.0},{"date":"2020-03-01","spread":0.5800000000000001,"recession":1.0},{"date":"2020-04-01","spread":0.52,"recession":1.0},{"date":"2020-05-01","spread":0.54,"recession":0.0},{"date":"2020-06-01","spread":0.57,"recession":0.0},{"date":"2020-07-01","spread":0.49,"recession":0.0},{"date":"2020-08-01","spread":0.55,"recession":0.0},{"date":"2020-09-01","spread":0.5700000000000001,"recession":0.0},{"date":"2020-10-01","spread":0.6900000000000001,"recession":0.0},{"date":"2020-11-01","spread":0.78,"recession":0.0},{"date":"2020-12-01","spread":0.8400000000000001,"recession":0.0},{"date":"2021-01-01","spread":1.0,"recession":0.0},{"date":"2021-02-01","spread":1.22,"recession":0.0},{"date":"2021-03-01","spread":1.58,"recession":0.0},{"date":"2021-04-01","spread":1.6199999999999999,"recession":0.0},{"date":"2021-05-01","spread":1.6,"recession":0.0},{"date":"2021-06-01","spread":1.48,"recession":0.0},{"date":"2021-07-01","spread":1.27,"recession":0.0},{"date":"2021-08-01","spread":1.23,"recession":0.0},{"date":"2021-09-01","spread":1.33,"recession":0.0},{"date":"2021-10-01","spread":1.53,"recession":0.0},{"date":"2021-11-01","spread":1.51,"recession":0.0},{"date":"2021-12-01","spread":1.41,"recession":0.0}];
+export default function HowToUse() {
+ const x=(i)=>42+i*310/(observations.length-1), y=(n)=>160-n*56;
+ const chosen=observations.findIndex(r=>r.date==="2019-09-01");
+ return <section id="how-to-use" className="learning-guide" aria-labelledby="guide-title" tabIndex={-1}>
+ <h2 id="guide-title">How to use Yield Curve Study</h2>
+ <div className="yield-guide">
+ <div><p>The spread is the 10-year Treasury yield minus the 3-month bill rate, in percentage points. Below zero, short-term rates are higher: the curve is inverted.</p>
+ <ol className="guide-steps">
+ <li><strong>Select a month.</strong> Drag across either chart, enter a date, or use the arrow buttons. Both charts follow the same marker.</li>
+ <li><strong>Compare the estimate.</strong> Read the selected model, its historical-prevalence baseline, and whether a recession actually began in the following year.</li>
+ <li><strong>Inspect a mistake.</strong> Open Results and select a false-alarm or missed month to return to its chart. Lower Brier scores mean smaller probability errors.</li>
+ </ol>
+ <p>Grey bands mark months already in recession; the prediction concerns a new onset within twelve months. Missing estimates stay unavailable. This downloaded data vintage includes historical revisions and cannot recreate exactly what an analyst knew at the time.</p>
+ <a href="#tool">Back to tool ↑</a></div>
+ <figure><svg viewBox="0 0 400 270" role="img" aria-label="Observed yield spread from 2018 to 2021, highlighting the September 2019 inversion and subsequent recession months">
+ {observations.map((r,i)=>r.recession===1?<rect key={r.date} x={x(i)-3} y="34" width="7" height="169" fill="#e1e5e6"/>:null)}
+ <path d="M42 34V204H352" fill="none" stroke="#9ca9af"/>
+ <line x1="42" x2="352" y1={y(0)} y2={y(0)} stroke="#8a6045" strokeDasharray="5 4"/>
+ <polyline points={observations.map((r,i)=>`${x(i)},${y(r.spread)}`).join(" ")} fill="none" stroke="#263c4b" strokeWidth="2.5"/>
+ <circle cx={x(chosen)} cy={y(observations[chosen].spread)} r="5" fill="#a95028" stroke="white" strokeWidth="2"/>
+ <g fontSize="15" fill="#273844"><text x="42" y="22">10-year − 3-month spread</text><text x="13" y={y(0)+5}>0</text>
+ <text x="42" y="225">2018</text><text x="305" y="225">2021</text><text x="70" y="251">Sept 2019: {observations[chosen].spread.toFixed(2)} pp</text>
+ <text x="229" y="55">Recession</text><path d="M236 62L218 93" stroke="#52626d"/></g>
+ </svg><figcaption>Historical observations from the study snapshot. The shaded period and forward-onset target have different meanings.</figcaption></figure>
+ </div></section>;
+}
