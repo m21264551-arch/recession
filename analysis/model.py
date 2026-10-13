@@ -1,167 +1,188 @@
-"""
-Recession — Recession Probability Model
-Logistic regression + gradient boosting ensemble for 12-month recession forecasting.
-Uses yield curve spreads + economic indicators as features.
-"""
+"""Expanding annual out-of-sample backtest with an explicit outcome-window embargo."""
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.model_selection import TimeSeriesSplit
-from sklearn.metrics import (
-    roc_auc_score, brier_score_loss, classification_report,
-    precision_recall_curve, roc_curve, confusion_matrix
-)
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
+from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.calibration import calibration_curve
-import json
+from analysis.data_pipeline import FEATURES
+
+MODEL_NAMES = {
+    "prevalence": "Historical prevalence",
+    "logistic": "Spread-only logistic",
+    "boosting": "Gradient boosting",
+}
+MODEL_SETTINGS = {
+    "prevalence": {"prediction": "mean eligible training target"},
+    "logistic": {
+        "features": ["spread"],
+        "scaler": "StandardScaler fitted on training data",
+        "C": 1.0,
+        "max_iter": 1000,
+    },
+    "boosting": {
+        "features": FEATURES,
+        "n_estimators": 100,
+        "max_depth": 2,
+        "learning_rate": 0.03,
+        "random_state": 42,
+    },
+}
 
 
-FEATURES = [
-    "spread_10y_3m", "spread_10y_2y", "spread_30y_5y", "spread_2y_3m",
-    "inverted_10y_3m", "inverted_10y_2y",
-    "spread_10y_3m_ma6", "spread_10y_2y_ma6",
-    "unemployment", "unemp_change_6m",
-    "cpi_yoy", "cpi_change_6m",
-    "ism_ma3", "gdp_ma2",
-    "months_since_inversion",
-]
-
-TARGET = "recession_12m"
+def eligible_training(frame, evaluation_start):
+    return frame.loc[
+        (frame.index < evaluation_start) & (frame.target_end < evaluation_start)
+    ].dropna(subset=FEATURES + ["target"])
 
 
-class RecessionModel:
-    def __init__(self):
-        self.scaler = StandardScaler()
-        self.lr = LogisticRegression(C=0.5, max_iter=1000, class_weight="balanced")
-        self.gb = GradientBoostingClassifier(
-            n_estimators=200, max_depth=4, learning_rate=0.05,
-            subsample=0.8, min_samples_leaf=10, random_state=42
+def metrics(y, scores):
+    y, scores = np.asarray(y, dtype=float), np.asarray(scores, dtype=float)
+    if not len(y):
+        return {
+            "n": 0,
+            "positiveMonths": 0,
+            "rocAuc": None,
+            "averagePrecision": None,
+            "brier": None,
+            "reason": "No eligible observations",
+            "calibration": [],
+        }
+    both = len(np.unique(y)) == 2
+    bins = []
+    for low in np.arange(0, 1, 0.1):
+        mask = (scores >= low) & (scores < low + 0.1 if low < 0.89 else scores <= 1)
+        if mask.any():
+            bins.append(
+                {
+                    "meanPrediction": float(scores[mask].mean()),
+                    "observedFrequency": float(y[mask].mean()),
+                    "n": int(mask.sum()),
+                }
+            )
+    return {
+        "n": len(y),
+        "positiveMonths": int(y.sum()),
+        "rocAuc": float(roc_auc_score(y, scores)) if both else None,
+        "averagePrecision": float(average_precision_score(y, scores)) if both else None,
+        "brier": float(brier_score_loss(y, scores)),
+        "reason": None if both else "Ranking metrics undefined: only one target class",
+        "calibration": bins,
+    }
+
+
+def backtest(frame, minimum_months=240):
+    predictions = []
+    folds = []
+    complete = frame.dropna(subset=FEATURES + ["target"])
+    for year in sorted(set(complete.index.year)):
+        start = pd.Timestamp(year, 1, 1)
+        train = eligible_training(frame, start)
+        test = complete.loc[
+            (complete.index >= start) & (complete.index < pd.Timestamp(year + 1, 1, 1))
+        ]
+        if (
+            len(train) < minimum_months
+            or train.index.max() - train.index.min() < pd.Timedelta(days=365.25 * 19.9)
+            or test.empty
+            or train.target.nunique() < 2
+        ):
+            continue
+        lr = make_pipeline(
+            StandardScaler(), LogisticRegression(C=1, max_iter=1000, random_state=42)
+        ).fit(train[["spread"]], train.target)
+        gb = GradientBoostingClassifier(
+            n_estimators=100, max_depth=2, learning_rate=0.03, random_state=42
+        ).fit(train[FEATURES], train.target)
+        scores = {
+            "prevalence": np.full(len(test), train.target.mean()),
+            "logistic": lr.predict_proba(test[["spread"]])[:, 1],
+            "boosting": gb.predict_proba(test[FEATURES])[:, 1],
+        }
+        fold = {
+            "id": str(year),
+            "trainingStart": train.index.min().strftime("%Y-%m-%d"),
+            "trainingEnd": train.index.max().strftime("%Y-%m-%d"),
+            "lastTrainingOutcome": train.target_end.max().strftime("%Y-%m-%d"),
+            "evaluationStart": test.index.min().strftime("%Y-%m-%d"),
+            "evaluationEnd": test.index.max().strftime("%Y-%m-%d"),
+            "refitAt": start.strftime("%Y-%m-%d"),
+            "trainingMonths": len(train),
+            "scalerMean": float(lr[0].mean_[0]),
+            "metrics": {
+                name: metrics(test.target, values) for name, values in scores.items()
+            },
+        }
+        assert pd.Timestamp(fold["lastTrainingOutcome"]) < start
+        folds.append(fold)
+        for i, (date, row) in enumerate(test.iterrows()):
+            predictions.append(
+                {
+                    "date": date.strftime("%Y-%m-%d"),
+                    "target": int(row.target),
+                    "foldId": str(year),
+                    "predictionType": "out_of_sample",
+                    "scores": {
+                        name: float(values[i]) for name, values in scores.items()
+                    },
+                }
+            )
+    return predictions, folds
+
+
+def summarize(frame, predictions):
+    overall = {
+        name: metrics(
+            [p["target"] for p in predictions], [p["scores"][name] for p in predictions]
         )
-        self.is_fitted = False
-
-    def fit(self, df: pd.DataFrame) -> dict:
-        """Train models and return evaluation metrics."""
-        X = df[FEATURES].values
-        y = df[TARGET].values
-        dates = df["date"].values
-
-        # Time series split — no future leakage
-        tscv = TimeSeriesSplit(n_splits=5)
-        cv_results = {"lr_aucs": [], "gb_aucs": [], "lr_briers": [], "gb_briers": []}
-
-        for train_idx, test_idx in tscv.split(X):
-            X_tr, X_te = X[train_idx], X[test_idx]
-            y_tr, y_te = y[train_idx], y[test_idx]
-
-            sc = StandardScaler().fit(X_tr)
-            X_tr_s, X_te_s = sc.transform(X_tr), sc.transform(X_te)
-
-            lr = LogisticRegression(C=0.5, max_iter=1000, class_weight="balanced").fit(X_tr_s, y_tr)
-            gb = GradientBoostingClassifier(
-                n_estimators=200, max_depth=4, learning_rate=0.05,
-                subsample=0.8, min_samples_leaf=10, random_state=42
-            ).fit(X_tr, y_tr)
-
-            lr_prob = lr.predict_proba(X_te_s)[:, 1]
-            gb_prob = gb.predict_proba(X_te)[:, 1]
-
-            if len(np.unique(y_te)) > 1:
-                cv_results["lr_aucs"].append(roc_auc_score(y_te, lr_prob))
-                cv_results["gb_aucs"].append(roc_auc_score(y_te, gb_prob))
-            cv_results["lr_briers"].append(brier_score_loss(y_te, lr_prob))
-            cv_results["gb_briers"].append(brier_score_loss(y_te, gb_prob))
-
-        # Final fit on all data
-        X_scaled = self.scaler.fit_transform(X)
-        self.lr.fit(X_scaled, y)
-        self.gb.fit(X, y)
-        self.is_fitted = True
-
-        # Predictions on full dataset for visualization
-        lr_probs = self.lr.predict_proba(X_scaled)[:, 1]
-        gb_probs = self.gb.predict_proba(X)[:, 1]
-        ensemble_probs = 0.4 * lr_probs + 0.6 * gb_probs
-
-        # Feature importance (from gradient boosting)
-        importance = dict(zip(FEATURES, self.gb.feature_importances_.round(4).tolist()))
-        importance_sorted = dict(sorted(importance.items(), key=lambda x: -x[1]))
-
-        # Logistic regression coefficients
-        lr_coefs = dict(zip(FEATURES, self.lr.coef_[0].round(4).tolist()))
-
-        # ROC curve data
-        fpr, tpr, _ = roc_curve(y, ensemble_probs)
-        roc_data = [{"fpr": round(f, 4), "tpr": round(t, 4)} for f, t in zip(fpr[::5], tpr[::5])]
-
-        # Precision-recall curve
-        prec, rec, _ = precision_recall_curve(y, ensemble_probs)
-        pr_data = [{"precision": round(p, 4), "recall": round(r, 4)} for p, r in zip(prec[::5], rec[::5])]
-
-        # Calibration curve
-        prob_true, prob_pred = calibration_curve(y, ensemble_probs, n_bins=10, strategy="uniform")
-        cal_data = [{"predicted": round(p, 4), "actual": round(a, 4)} for p, a in zip(prob_pred, prob_true)]
-
-        # Confusion matrix at 0.5 threshold
-        preds = (ensemble_probs > 0.5).astype(int)
-        cm = confusion_matrix(y, preds)
-
-        # Time series of probabilities
-        prob_series = []
-        for i, d in enumerate(dates):
-            prob_series.append({
-                "date": str(pd.Timestamp(d).date()),
-                "lr_prob": round(float(lr_probs[i]), 4),
-                "gb_prob": round(float(gb_probs[i]), 4),
-                "ensemble_prob": round(float(ensemble_probs[i]), 4),
-                "actual": int(y[i]),
-            })
-
-        return {
-            "cv_metrics": {
-                "lr_auc_mean": round(np.mean(cv_results["lr_aucs"]), 4) if cv_results["lr_aucs"] else 0,
-                "gb_auc_mean": round(np.mean(cv_results["gb_aucs"]), 4) if cv_results["gb_aucs"] else 0,
-                "lr_brier_mean": round(np.mean(cv_results["lr_briers"]), 4),
-                "gb_brier_mean": round(np.mean(cv_results["gb_briers"]), 4),
-            },
-            "full_metrics": {
-                "auc": round(roc_auc_score(y, ensemble_probs), 4),
-                "brier": round(brier_score_loss(y, ensemble_probs), 4),
-                "accuracy": round(np.mean(preds == y), 4),
-                "confusion_matrix": cm.tolist(),
-                "classification_report": classification_report(y, preds, output_dict=True, zero_division=0),
-            },
-            "feature_importance_gb": importance_sorted,
-            "lr_coefficients": lr_coefs,
-            "roc_curve": roc_data,
-            "pr_curve": pr_data,
-            "calibration_curve": cal_data,
-            "probability_series": prob_series,
-            "current_probability": round(float(ensemble_probs[-1]), 4),
-            "current_assessment": _assess(float(ensemble_probs[-1])),
+        for name in MODEL_NAMES
+    }
+    episodes = []
+    for date in frame.index[frame.onset == 1]:
+        rows = [
+            p
+            for p in predictions
+            if date - pd.DateOffset(months=12) <= pd.Timestamp(p["date"]) < date
+        ]
+        if not rows:
+            continue
+        episodes.append(
+            {
+                "onset": date.strftime("%Y-%m-%d"),
+                "evaluatedMonths": len(rows),
+                "completeWindow": len(rows) == 12,
+                "models": {
+                    name: {
+                        "meanProbability": float(
+                            np.mean([p["scores"][name] for p in rows])
+                        ),
+                        "maxProbability": max(p["scores"][name] for p in rows),
+                        "monthsAboveHalf": sum(p["scores"][name] >= 0.5 for p in rows),
+                        "metrics": metrics(
+                            [p["target"] for p in rows],
+                            [p["scores"][name] for p in rows],
+                        ),
+                    }
+                    for name in MODEL_NAMES
+                },
+            }
+        )
+    errors = {
+        name: {
+            "threshold": 0.5,
+            "falseAlarmMonths": [
+                p["date"]
+                for p in predictions
+                if not p["target"] and p["scores"][name] >= 0.5
+            ],
+            "missedPositiveMonths": [
+                p["date"]
+                for p in predictions
+                if p["target"] and p["scores"][name] < 0.5
+            ],
         }
-
-    def predict_current(self, df: pd.DataFrame) -> dict:
-        """Get current recession probability."""
-        if not self.is_fitted:
-            raise ValueError("Model not fitted")
-        row = df.iloc[-1:][FEATURES]
-        X_scaled = self.scaler.transform(row.values)
-        lr_p = self.lr.predict_proba(X_scaled)[0, 1]
-        gb_p = self.gb.predict_proba(row.values)[0, 1]
-        ens = 0.4 * lr_p + 0.6 * gb_p
-        return {
-            "probability": round(float(ens), 4),
-            "lr_probability": round(float(lr_p), 4),
-            "gb_probability": round(float(gb_p), 4),
-            "assessment": _assess(float(ens)),
-            "date": str(df.iloc[-1]["date"].date()),
-        }
-
-
-def _assess(prob):
-    if prob > 0.7: return "High Risk"
-    if prob > 0.4: return "Elevated"
-    if prob > 0.2: return "Moderate"
-    return "Low Risk"
+        for name in MODEL_NAMES
+    }
+    return overall, episodes, errors

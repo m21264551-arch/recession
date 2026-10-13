@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "retrievedAt": "2026-10-13T12:25:25.691254+00:00",
+  "downloadUrl": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=GS10,TB3MS,USREC",
+  "sha256": "2ae74b9c80d6d6e5e0f103974b8cf048b8edad34b14421a40a37abc925f998b8",
+  "sources": [
+    {
+      "series": "GS10",
+      "url": "https://fred.stlouisfed.org/series/GS10",
+      "unit": "percent",
+      "frequency": "monthly",
+      "basis": "10-year constant-maturity Treasury, investment basis"
+    },
+    {
+      "series": "TB3MS",
+      "url": "https://fred.stlouisfed.org/series/TB3MS",
+      "unit": "percent",
+      "frequency": "monthly",
+      "basis": "3-month Treasury bill secondary-market rate, discount basis"
+    },
+    {
+      "series": "USREC",
+      "url": "https://fred.stlouisfed.org/series/USREC",
+      "unit": "0/1",
+      "frequency": "monthly",
+      "basis": "NBER recession indicator, peak-to-trough convention via FRED"
+    }
+  ],
+  "vintage": "Downloaded data vintage, not a real-time vintage reconstruction"
+}
