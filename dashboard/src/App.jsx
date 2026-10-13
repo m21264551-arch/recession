@@ -324,7 +324,7 @@ export default function App() {
           <p className="eyebrow">Historical evidence / US Treasury yields</p>
           <h1>
             Before a recession,
-            <br />
+            <br />{" "}
             what does the curve tell us?
           </h1>
           <p>
