@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 const names = {
   prevalence: "Historical prevalence",
@@ -49,8 +49,16 @@ function ResultsTable({ heads, rows, label = `${heads[0]} results` }) {
 }
 
 function HistoryChart({ rows, model, selected, onSelect }) {
-  const width = 1040,
-    height = 330,
+  const container = useRef(null);
+  const [width, setWidth] = useState(900);
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) =>
+      setWidth(Math.max(300, entry.contentRect.width)),
+    );
+    if (container.current) observer.observe(container.current);
+    return () => observer.disconnect();
+  }, []);
+  const height = width < 500 ? 170 : 190,
     left = 54,
     right = 24,
     top = 24,
@@ -89,6 +97,17 @@ function HistoryChart({ rows, model, selected, onSelect }) {
       <svg
         viewBox={`0 0 ${width} ${height}`}
         role="img"
+        onPointerDown={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const fraction =
+            (((event.clientX - rect.left) * width) / rect.width - left) /
+            (width - left - right);
+          const index = Math.max(
+            0,
+            Math.min(rows.length - 1, Math.round(fraction * (rows.length - 1))),
+          );
+          onSelect(rows[index].date);
+        }}
         aria-label={
           probability
             ? "Out-of-sample probability of recession onset in the next 12 months, with historical prevalence baseline"
@@ -164,9 +183,9 @@ function HistoryChart({ rows, model, selected, onSelect }) {
         {Array.from(
           new Set([
             0,
-            Math.floor(rows.length / 4),
+            ...(width < 500 ? [] : [Math.floor(rows.length / 4)]),
             Math.floor(rows.length / 2),
-            Math.floor((rows.length * 3) / 4),
+            ...(width < 500 ? [] : [Math.floor((rows.length * 3) / 4)]),
             rows.length - 1,
           ]),
         ).map((i) => (
@@ -185,20 +204,19 @@ function HistoryChart({ rows, model, selected, onSelect }) {
     );
   };
   return (
-    <section className="history">
+    <section className="history" ref={container}>
       <h2>
-        Yield spread <span>Percentage points · GS10 − TB3MS</span>
+        Yield spread <span>10-year − 3-month · percentage points</span>
       </h2>
       {chart(false)}
       <h2>
-        What did the model estimate?{" "}
+        Recession onset probability{" "}
         <span>{names[model]} — solid · prevalence — dashed</span>
       </h2>
       {chart(true)}
       <p className="caption">
-        Grey bands are recession months (USREC), not the forward-onset target.
-        Blank forecasts mean insufficient training history, missing inputs, or
-        an incomplete 12-month outcome window.
+        Grey bands: recession months. Forecast target: an onset in the next 12
+        months. Gaps: unavailable estimates; select a month for the reason.
       </p>
       <label className="scrubber">
         Inspect historical month{" "}
@@ -310,29 +328,16 @@ export default function App() {
     <>
       <header>
         <a className="brand" href="/">
-          Yield Curve Recession Study
+          Yield Curve Study
         </a>
+        <span className="mode">Historical backtest</span>
         <nav aria-label="External links">
-          <a href="https://github.com/m21264551-arch/recession">
-            Code & method ↗
-          </a>
+          <a href="https://github.com/m21264551-arch/recession">Code ↗</a>
           <a href="https://m21264551.com">Portfolio ↗</a>
         </nav>
       </header>
       <main>
-        <div className="opening">
-          <p className="eyebrow">Historical evidence / US Treasury yields</p>
-          <h1>
-            Before a recession,
-            <br />{" "}
-            what does the curve tell us?
-          </h1>
-          <p>
-            Test a yield-curve signal against simple baselines. Every estimate
-            shown here comes from a chronological backtest using a dated
-            historical snapshot.
-          </p>
-        </div>
+        <h1>Compare yield-curve signals with subsequent recession onsets.</h1>
         {error ? (
           <div role="alert">
             <h2>Study unavailable</h2>
@@ -348,24 +353,10 @@ export default function App() {
           <p role="status">Loading the historical study…</p>
         ) : (
           <>
-            <div className="snapshot">
-              <span>
-                {month(study.observationPeriod.start)} –{" "}
-                {month(study.observationPeriod.end)}
-              </span>
-              <span>
-                FRED snapshot · retrieved{" "}
-                {study.snapshot.retrievedAt.slice(0, 10)}
-              </span>
-              <span>
-                {study.folds.length} annual refits ·{" "}
-                {study.models.logistic.metrics.n} evaluated months
-              </span>
-            </div>
             <nav className="views" aria-label="Study views">
               {[
                 ["signals", "Historical signals"],
-                ["backtest", "Backtest"],
+                ["backtest", "Results"],
                 ["method", "Data and method"],
               ].map(([key, title]) => (
                 <button
@@ -393,7 +384,7 @@ export default function App() {
                     </select>
                   </label>
                   <label>
-                    Compare with prevalence
+                    Model
                     <select
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
@@ -405,87 +396,134 @@ export default function App() {
                       ))}
                     </select>
                   </label>
-                  <label>
-                    Selected historical month
-                    <select
-                      value={selected}
-                      onChange={(e) => setSelected(e.target.value)}
+                  <div className="month-controls">
+                    <label>
+                      Selected month
+                      <input
+                        type="month"
+                        value={selected.slice(0, 7)}
+                        min={study.rows[0].date.slice(0, 7)}
+                        max={study.rows.at(-1).date.slice(0, 7)}
+                        onChange={(e) => {
+                          const date = `${e.target.value}-01`;
+                          if (study.rows.some((r) => r.date === date)) {
+                            setSelected(date);
+                            if (+date.slice(0, 4) < +period) setPeriod("1953");
+                          }
+                        }}
+                      />
+                    </label>
+                    <button
+                      aria-label="Previous month"
+                      disabled={rows[0]?.date === selected}
+                      onClick={() =>
+                        setSelected(
+                          rows[
+                            Math.max(
+                              0,
+                              rows.findIndex((r) => r.date === selected) - 1,
+                            )
+                          ].date,
+                        )
+                      }
                     >
-                      {rows.map((r) => (
-                        <option key={r.date} value={r.date}>
-                          {month(r.date)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      ←
+                    </button>
+                    <button
+                      aria-label="Next month"
+                      disabled={rows.at(-1)?.date === selected}
+                      onClick={() =>
+                        setSelected(
+                          rows[
+                            Math.min(
+                              rows.length - 1,
+                              rows.findIndex((r) => r.date === selected) + 1,
+                            )
+                          ].date,
+                        )
+                      }
+                    >
+                      →
+                    </button>
+                  </div>
                 </div>
-                <HistoryChart
-                  rows={rows}
-                  model={model}
-                  selected={selected}
-                  onSelect={setSelected}
-                />
-                <section className="selected">
-                  <div>
-                    <p className="eyebrow">
-                      Selected month · {month(selected)}
-                    </p>
-                    <h2>
-                      {prediction
-                        ? percent(prediction.scores[model])
-                        : "Estimate unavailable"}
-                    </h2>
-                    <p>
-                      {prediction
-                        ? "Estimated probability of an onset during the next 12 months."
-                        : inspected?.unavailableReason}
-                    </p>
-                  </div>
-                  <div>
-                    <h3>Inspect the evidence</h3>
-                    <p>
-                      Spread:{" "}
-                      <strong>
-                        {format(inspected?.spread, 2)} percentage points.
-                      </strong>{" "}
-                      {inspected?.USREC === 1
-                        ? "This month was in a recession."
-                        : "This month was outside a recession."}
-                    </p>
-                    <p>
-                      Observed target:{" "}
-                      <strong>
-                        {inspected?.target === null
-                          ? "future window incomplete"
-                          : inspected?.target === 1
-                            ? "a recession began in the next 12 months"
-                            : "no recession began in the next 12 months"}
-                        .
-                      </strong>
-                    </p>
-                    {fold && (
-                      <p>
-                        Fit on {month(fold.trainingStart)} –{" "}
-                        {month(fold.trainingEnd)}. Training outcomes end{" "}
-                        {month(fold.lastTrainingOutcome)}. Refit January{" "}
-                        {fold.id}.
+                <div className="signal-layout">
+                  <HistoryChart
+                    rows={rows}
+                    model={model}
+                    selected={selected}
+                    onSelect={setSelected}
+                  />
+                  <section className="selected">
+                    <div>
+                      <p className="selection-label">
+                        Selected month · {month(selected)}
                       </p>
-                    )}
-                  </div>
-                </section>
+                      <h2>
+                        {prediction
+                          ? percent(prediction.scores[model])
+                          : "Estimate unavailable"}
+                      </h2>
+                      <p>
+                        {prediction
+                          ? "Estimated probability of an onset during the next 12 months."
+                          : inspected?.unavailableReason}
+                      </p>
+                    </div>
+                    <div>
+                      <p>
+                        Baseline:{" "}
+                        <strong>
+                          {prediction
+                            ? percent(prediction.scores.prevalence)
+                            : "Unavailable"}
+                        </strong>
+                      </p>
+                      <p>
+                        Spread:{" "}
+                        <strong>
+                          {format(inspected?.spread, 2)} percentage points.
+                        </strong>{" "}
+                        {inspected?.USREC === 1
+                          ? "This month was in a recession."
+                          : "This month was outside a recession."}
+                      </p>
+                      <p>
+                        Observed target:{" "}
+                        <strong>
+                          {inspected?.target === null
+                            ? "future window incomplete"
+                            : inspected?.target === 1
+                              ? "a recession began in the next 12 months"
+                              : "no recession began in the next 12 months"}
+                          .
+                        </strong>
+                      </p>
+                      {fold && (
+                        <details>
+                          <summary>Training window</summary>
+                          <p>
+                            Fit on {month(fold.trainingStart)} –{" "}
+                            {month(fold.trainingEnd)}. Training outcomes end{" "}
+                            {month(fold.lastTrainingOutcome)}. Refit January{" "}
+                            {fold.id}.
+                          </p>
+                        </details>
+                      )}
+                    </div>
+                  </section>
+                </div>
                 <div className="note">
-                  A yield inversion is a historical signal, not a recession
-                  clock. The selected model’s full-backtest Brier score is{" "}
+                  Full-backtest Brier score:{" "}
                   {format(study.models[model].metrics.brier)}, compared with{" "}
                   {format(study.models.prevalence.metrics.brier)} for prevalence
-                  (lower is better). Inspect the Backtest view for misses, false
-                  alarms, and calibration.
+                  (lower is better). See Results for errors and calibration.
                 </div>
               </>
             )}
             {view === "backtest" && (
               <>
-                <h2>Compare every out-of-sample month</h2>
+                <h2>Backtest results</h2>
                 <p>
                   These metrics cover the full evaluation history, independently
                   of the chart period. The overlapping 12-month targets are
@@ -534,7 +572,7 @@ export default function App() {
                     </p>
                   </section>
                   <section>
-                    <h3>Failures are part of the result</h3>
+                    <h3>False alarms and misses</h3>
                     <p>At the illustrative, untuned threshold of 50%:</p>
                     <p>
                       <strong>
@@ -627,7 +665,25 @@ export default function App() {
             )}
             {view === "method" && (
               <section className="method">
-                <h2>A retrospective study, with boundaries</h2>
+                <h2>Data and method</h2>
+                <div className="snapshot">
+                  <span>
+                    {month(study.observationPeriod.start)} –{" "}
+                    {month(study.observationPeriod.end)}
+                  </span>
+                  <span>
+                    FRED snapshot · retrieved{" "}
+                    {study.snapshot.retrievedAt.slice(0, 10)}
+                  </span>
+                  <span>
+                    {study.folds.length} annual refits ·{" "}
+                    {study.models.logistic.metrics.n} evaluated months
+                  </span>
+                </div>
+                <p className="identity">
+                  {study.artifactId} · code {study.codeRevision.slice(0, 8)} ·
+                  schema v{study.schemaVersion}
+                </p>
                 <p>{study.protocol.vintageLimitation}</p>
                 <h3>Data and units</h3>
                 <p>
@@ -683,7 +739,7 @@ export default function App() {
                   identity. Public browsing reads the committed artifact and
                   does not contact FRED or train on startup.
                 </p>
-                <h3>What remains uncertain</h3>
+                <h3>Limitations</h3>
                 <p>
                   There are few recession episodes. Final recession
                   classifications and revised yield data were not all known in
@@ -700,13 +756,11 @@ export default function App() {
             )}
             <footer>
               <a href="/api/study.json" download="yield-curve-study-v1.json">
-                Download complete study ↓
+                Download data ↓
               </a>
               <span>
-                {study.artifactId} · code {study.codeRevision.slice(0, 8)}
-              </span>
-              <span>
-                Saved historical backtest · schema v{study.schemaVersion}
+                Historical backtest · FRED snapshot{" "}
+                {study.snapshot.retrievedAt.slice(0, 10)}
               </span>
             </footer>
           </>

@@ -4,11 +4,11 @@
 
 [Historical study](https://yieldcurve.m21264551.com) · [Case study](docs/case-study.md)
 
-![Historical signals and backtest estimate](docs/study-desktop.png)
+![Historical signals and backtest estimate](docs/compact-desktop.jpg)
 
 ## Walkthrough
 
-Choose a historical month and compare a model with the prevalence baseline. The chart separates USREC recession shading from the forward-onset target. In **Backtest**, inspect every annual evaluation window, recession episode, false-alarm month and missed positive month. **Data and method** exposes units, sources, eligibility rules and limitations.
+Choose a historical month and compare a model with the prevalence baseline. The chart separates USREC recession shading from the forward-onset target. In **Results**, inspect every annual evaluation window, recession episode, false-alarm month and missed positive month. **Data and method** exposes units, sources, eligibility rules and limitations.
 
 This is a saved retrospective study, not a current recession monitor. The final 12 months lack fully observed outcomes and have no evaluated forecast. Public browsing neither calls FRED nor retrains a model.
 
