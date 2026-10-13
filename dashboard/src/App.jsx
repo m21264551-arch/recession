@@ -1,3 +1,4 @@
+import HowToUse from "./components/HowToUse";
 import React, { useEffect, useRef, useState } from "react";
 
 const names = {
@@ -331,12 +332,13 @@ export default function App() {
           Yield Curve Study
         </a>
         <span className="mode">Historical backtest</span>
-        <nav aria-label="External links">
+        <nav aria-label="Project links">
+          <a href="#how-to-use">How to use</a>
           <a href="https://github.com/m21264551-arch/recession">Code ↗</a>
           <a href="https://m21264551.com">Portfolio ↗</a>
         </nav>
       </header>
-      <main>
+      <main id="tool" tabIndex={-1}>
         <h1>Compare yield-curve signals with subsequent recession onsets.</h1>
         {error ? (
           <div role="alert">
@@ -765,6 +767,7 @@ export default function App() {
             </footer>
           </>
         )}
+      <HowToUse />
       </main>
     </>
   );
