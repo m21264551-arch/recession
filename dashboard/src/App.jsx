@@ -102,7 +102,7 @@ function HistoryChart({ rows, model, selected, onSelect }) {
     const chosen = rows.findIndex((r) => r.date === selected);
     const selectedValue = probability ? rows[chosen]?.prediction?.scores[model] : rows[chosen]?.spread;
     const labelX = Math.max(left+4, Math.min(width-right-92, x(chosen)+10));
-    const labelY = Number.isFinite(selectedValue) ? Math.max(top+17, y(selectedValue)-12) : top+17;
+    const labelY = top - 7;
     return (
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -153,6 +153,7 @@ function HistoryChart({ rows, model, selected, onSelect }) {
         )}
         {[0, 1, 2, 3, 4].map((i) => {
           const v = min + ((max - min) * i) / 4;
+          if (!probability && Math.abs(y(v) - y(0)) < 18) return null;
           return (
             <g key={i}>
               <line
@@ -193,7 +194,7 @@ function HistoryChart({ rows, model, selected, onSelect }) {
             y2={y(0)}
             stroke="#987557"
             strokeDasharray="5 5"
-          /><text x={left+8} y={y(0)+16} className="zero-label">0 · inversion below</text></g>
+          /><text x={left-9} y={y(0)+4} textAnchor="end" className="zero-label">0</text></g>
         )}
         {chosen >= 0 && (
           <g className="date-marker"><line
@@ -237,7 +238,7 @@ function HistoryChart({ rows, model, selected, onSelect }) {
   return (
     <section className="history" ref={container}>
       <h2>
-        Yield spread <span>10-year − 3-month · percentage points</span>
+        Yield spread <span>10-year − 3-month · percentage points · below zero: inverted</span>
       </h2>
       {chart(false)}
       <h2>
