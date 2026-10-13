@@ -47,3 +47,6 @@ key.properties
 *.pickle
 *.parquet
 *.zip
+
+dashboard/test-results/
+dashboard/playwright-report/
