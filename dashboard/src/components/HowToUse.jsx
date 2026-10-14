@@ -11,7 +11,7 @@ export default function HowToUse() {
  <li><strong>Compare the estimate.</strong> Read the selected model, its historical-prevalence baseline, and whether a recession actually began in the following year.</li>
  <li><strong>Inspect a mistake.</strong> Go to Results and select a false-alarm or missed month to return to its chart. Lower Brier scores mean smaller probability errors.</li>
  </ol>
- <p>Grey bands mark months already in recession; the prediction concerns a new onset within twelve months. Missing estimates stay unavailable. This downloaded data vintage includes historical revisions and cannot recreate exactly what an analyst knew at the time.</p>
+ <p>Grey bands mark months already in recession. The prediction concerns a new onset within twelve months. Missing estimates stay unavailable. This downloaded data vintage includes historical revisions and cannot recreate exactly what an analyst knew at the time.</p>
  <a href="#tool">Back to tool ↑</a></div>
  <figure><svg viewBox="0 0 400 270" role="img" aria-label="Observed yield spread from 2018 to 2021, highlighting the September 2019 inversion and subsequent recession months">
  {observations.map((r,i)=>r.recession===1?<rect key={r.date} x={x(i)-3} y="34" width="7" height="169" fill="#e1e5e6"/>:null)}

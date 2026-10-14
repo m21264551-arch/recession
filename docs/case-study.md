@@ -10,8 +10,8 @@ The upper chart shows the 10-year Treasury yield minus the 3-month bill rate. Th
 
 ## Keep future labels out of training
 
-The study uses a frozen monthly FRED snapshot of GS10, TB3MS and USREC. Models refit annually on an expanding history. Every training label’s complete 12-month outcome window ends before the refit; scaling also uses training data only. The dashboard and API read the same saved results.
+The study uses a frozen monthly FRED snapshot of GS10, TB3MS and USREC. Models refit annually on an expanding history. Every training label’s complete 12-month outcome window ends before the refit. Scaling also uses training data only. The dashboard and API read the same saved results.
 
 ## Six recessions, not 609 independent events
 
-Adjacent targets overlap, and the data vintage includes historical revisions and final recession classifications. This is a retrospective backtest rather than a reconstruction of forecasts available at the time. Reproducing publication dates and earlier data vintages is the next substantive limitation.
+Adjacent targets overlap, and the data vintage includes historical revisions and final recession classifications. This is a retrospective backtest rather than a reconstruction of forecasts available at the time. The backtest does not account for when data revisions and recession announcements became available.
