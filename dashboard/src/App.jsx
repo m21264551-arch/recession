@@ -263,12 +263,12 @@ function HistoryChart({ rows, model, selected, onSelect }) {
       {chart(false)}
       <h2>
         Recession onset probability{" "}
-        <span>{names[model]} — solid · prevalence — dashed</span>
+        <span>{names[model]} : solid · prevalence: dashed</span>
       </h2>
       {chart(true)}
       <p className="caption">
         Grey bands: recession months. Forecast target: an onset in the next 12
-        months. Gaps: unavailable estimates; select a month for the reason.
+        months. Gaps show unavailable estimates. Select a month for the reason.
       </p>
       <label className="scrubber">
         Inspect historical month{" "}
@@ -543,12 +543,10 @@ export default function App() {
               </section>
             <section id="results-section" aria-labelledby="results-title">
                 <h2 id="results-title">Backtest results</h2>
-                <p className="metric-reading">Ranking: ROC-AUC and average precision measure whether onset windows score above other months. Probability error: Brier measures squared error in the estimates; lower is better. Neither a high AUC nor an exact percentage establishes calibration.</p>
+                <p className="metric-reading">Ranking: ROC-AUC and average precision measure whether onset windows score above other months. Probability error: Brier measures squared error in the estimates. Lower is better. Neither a high AUC nor an exact percentage establishes calibration.</p>
                 <p>
                   These metrics cover the full evaluation history, independently
-                  of the chart period. The overlapping 12-month targets are
-                  correlated; monthly sample count is not a count of independent
-                  economic events.
+                  of the chart period. The 12-month targets overlap. Monthly observations are not independent economic events.
                 </p>
                 <ResultsTable
                   heads={[
@@ -590,8 +588,7 @@ export default function App() {
                         rows={study.models[model].metrics.calibration.map(p=>[percent(p.meanPrediction),percent(p.observedFrequency),p.n])} />
                     </details>
                     <p className="caption">
-                      Ten fixed probability bins; circle size reflects the
-                      number of months. The diagonal represents agreement, not a
+                      Ten fixed probability bins. Circle size shows the number of months. The diagonal represents agreement, not a
                       fitted calibration correction.
                     </p>
                   </section>
@@ -648,8 +645,7 @@ export default function App() {
                 />
                 <p className="caption">
                   Each row covers the 12 months before the first USREC=1 month.
-                  Ranking metrics are undefined within these all-positive
-                  windows; Brier remains defined. This target follows USREC’s
+                  Ranking metrics are undefined within these all-positive windows. Brier remains defined. This target follows USREC’s
                   convention, not the date an NBER announcement was published.
                 </p>
                 <details className="annual-details"><summary>Annual evaluation details · {study.folds.length} refits</summary>
@@ -719,8 +715,7 @@ export default function App() {
                   ])}
                 />
                 <p>
-                  The study uses GS10, TB3MS and USREC. Missing values are preserved; models skip rows
-                  without all required features. Synthetic histories are
+                  The study uses GS10, TB3MS and USREC. Missing values are preserved. Models skip rows without all required features. Synthetic histories are
                   restricted to test fixtures.
                 </p>
                 <h3>Target and eligible training labels</h3>
@@ -742,8 +737,7 @@ export default function App() {
                   regression uses only the standardized spread (C=1). Gradient
                   boosting uses the spread, its three-month lag and change,
                   GS10, and TB3MS: 100 trees, depth 2, learning rate 0.03, seed
-                  42. Settings were fixed before running this reconstruction; no
-                  hyperparameter selection uses evaluation periods.
+                  42. Settings were fixed before the backtest. Evaluation periods were not used to choose them.
                 </p>
                 </details>
                 <details className="method-detail"><summary>Reproduce this snapshot</summary>
