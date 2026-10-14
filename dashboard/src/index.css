@@ -126,3 +126,12 @@ footer { display:flex; justify-content:space-between; flex-wrap:wrap; gap:16px; 
  .observed-outcome span { margin-top:3px; }
  .chart-controls { margin-bottom:8px; }
 }
+.chart-key,.target-period { font-size:12px; color:#6e4a30; margin:3px 0 6px; }
+.historical-examples { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin:12px 0; font-size:13px; }
+.historical-examples button { font-size:13px; }
+.error-episode { border-top:1px solid var(--line); padding:10px 0; }
+.error-episode>span { display:inline-block; margin-left:10px; font-size:12px; }
+.error-episode details { margin-top:4px; }
+.metric-reading { border-left:2px solid #a95028; padding-left:14px; font-size:14px; }
+.method-detail { border-top:1px solid var(--line); }
+.method-detail summary { min-height:44px; padding:12px 0; cursor:pointer; font-weight:600; }
