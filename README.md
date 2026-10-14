@@ -8,7 +8,7 @@
 
 ## Walkthrough
 
-Choose a historical month and compare a model with the prevalence baseline. History, Results, and Data and method remain on one continuous page. Recession-episode navigation opens a five-year window around an onset, with the preceding month selected; error-month buttons return to the chart without changing the model. The chart separates USREC recession shading from the forward-onset target. In **Results**, inspect every annual evaluation window, recession episode, false-alarm month and missed positive month. **Data and method** exposes units, sources, eligibility rules and limitations.
+Choose a historical month and compare a model with the prevalence baseline. History, Results, and Data and method remain on one continuous page. The **Period or recession** selector opens a five-year window around an onset, with the preceding month selected; error-month buttons return to the chart without changing the model. The chart separates USREC recession shading from the forward-onset target. In **Results**, inspect false-alarm and missed months. Calibration values and the 51 annual evaluation windows are available in expandable tables. The selected-month explanation defines the prevalence baseline and its training window. **Data and method** exposes units, sources, eligibility rules and limitations.
 
 This is a saved retrospective study, not a current recession monitor. The final 12 months lack fully observed outcomes and have no evaluated forecast. Public browsing neither calls FRED nor retrains a model.
 
