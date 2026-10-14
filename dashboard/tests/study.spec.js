@@ -17,7 +17,7 @@ test("historical estimates and metrics match the snapshot, incomplete horizons s
   await expect(
     page.getByRole("heading", { name: "Estimate unavailable" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Results", exact: true }).click();
+  await page.getByRole("link", { name: "Results", exact: true }).click();
   await expect(
     page.getByRole("row").filter({
       has: page.getByRole("cell", {
@@ -57,7 +57,7 @@ for (const width of [1440, 390])
         () => document.documentElement.scrollWidth <= window.innerWidth,
       ),
     ).toBe(true);
-    await page.getByRole("button", { name: "Results", exact: true }).click();
+    await page.getByRole("link", { name: "Results", exact: true }).click();
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });
 
@@ -120,7 +120,7 @@ test("dragging and keyboard inspection keep both markers aligned",async({page})=
 });
 
 test("an error month opens its chart without changing the model",async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:'Results',exact:true}).click();
+ await page.goto('/');await page.getByRole('link',{name:'Results',exact:true}).click();
  await page.getByLabel('Inspect model').selectOption('boosting');
  await page.getByText('Inspect false-alarm months',{exact:true}).click();
  const date=study.errors.boosting.falseAlarmMonths[0];
@@ -137,5 +137,27 @@ for(const [width,height] of [[1280,720],[800,900],[390,844]]) test(`selected est
  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(width);
  const chart=await page.locator('.history svg').first().boundingBox();expect(chart.y).toBeLessThan(height-120);
  if(width<760) expect((await page.locator('.selected').boundingBox()).y).toBeLessThan(chart.y);
- await page.screenshot({path:`../../../outputs/refined-yieldcurve-${width}.png`});
+ await page.screenshot({path:`../../../outputs/distinct-tested-yieldcurve-${width}.png`});
+});
+
+test('episode navigation retains the model and forecast identity across continuous sections',async({page})=>{
+ await page.goto('/?source=portfolio');
+ await page.getByRole('combobox',{name:'Model',exact:true}).selectOption('boosting');
+ const episode=study.episodes.find(e=>e.onset>='2000');
+ await page.getByRole('combobox',{name:'Recession episode',exact:true}).selectOption(episode.onset);
+ const previous=new Date(episode.onset+'T00:00:00Z');previous.setUTCMonth(previous.getUTCMonth()-1);
+ const date=previous.toISOString().slice(0,10);
+ await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue(date.slice(0,7));
+ await expect(page.getByRole('combobox',{name:'Chart period',exact:true})).toHaveValue('episode');
+ const row=study.rows.find(r=>r.date===date);
+ await expect(page.locator('.selected h2')).toHaveText(`${(row.prediction.scores.boosting*100).toFixed(1)}%`);
+ await page.getByRole('link',{name:'Results',exact:true}).click();
+ await page.getByRole('link',{name:'Data and method',exact:true}).click();
+ await page.getByRole('link',{name:'History',exact:true}).click();
+ expect(new URL(page.url()).search).toBe('?source=portfolio');
+ await expect(page.getByRole('combobox',{name:'Model',exact:true})).toHaveValue('boosting');
+ await expect(page.getByLabel('Selected month',{exact:true})).toHaveValue(date.slice(0,7));
+ await page.getByLabel('Selected month',{exact:true}).fill('1990-06');
+ await expect(page.getByRole('combobox',{name:'Recession episode',exact:true})).toHaveValue('');
+ await expect(page.getByRole('combobox',{name:'Chart period',exact:true})).toHaveValue('1953');
 });
